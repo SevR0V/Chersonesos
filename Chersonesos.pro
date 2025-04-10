@@ -13,13 +13,15 @@ SOURCES += \
     main.cpp \
     customlineedit.cpp \
     gamepadworker.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    profilemanager.cpp
 
 HEADERS += \
     controlwindow.h \
     customlineedit.h \
     gamepadworker.h \
-    mainwindow.h
+    mainwindow.h \
+    profilemanager.h
 
 FORMS += \
     controlwindow.ui \

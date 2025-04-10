@@ -1,0 +1,23 @@
+{
+    "profileName": "example",
+    "devices": {
+        "primary": "primaryDevice",
+        "sceondary": "secondaryDevice"
+    },
+    "inputs":[
+        {
+            "inputName": "moveForward",
+            "primaryInput": "axis1",
+            "sceondaryInput": "button13",
+            "primaryInversion": true,
+            "secondaryInversion": false
+        },
+        {   
+            "inputName": "moveSideways",
+            "primaryInput": "axis5",
+            "sceondaryInput": "button17",
+            "primaryInversion": true,
+            "secondaryInversion": false
+        }
+    ]
+}

@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QTimer>
 
+
 ControlWindow::ControlWindow(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::ControlWindow)
