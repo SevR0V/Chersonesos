@@ -103,12 +103,12 @@ void ProfileManager::setDevices(const QString& primary, const QString& secondary
     profileObject["devices"] = devices;
 }
 
-void ProfileManager::addInput(const QString& name, const QString& input, const bool isSecondaryInput, bool inversion) {
+void ProfileManager::addInput(const QString& name, const QString& input, const bool isSecondaryInput) {
     QJsonObject inputObj;
     inputObj["inputName"] = name;
     inputObj["input"] = input;
     inputObj["isSecondary"] = isSecondaryInput;
-    inputObj["inversion"] = inversion;
+    inputObj["inversion"] = false;
 
     QJsonArray inputs = profileObject["inputs"].toArray();
     bool found = false;
@@ -128,6 +128,27 @@ void ProfileManager::addInput(const QString& name, const QString& input, const b
 
     profileObject["inputs"] = inputs;
 }
+
+void ProfileManager::setInversion(const QString& inputName, bool inversion)
+{
+    QJsonArray inputs = profileObject["inputs"].toArray();
+    bool found = false;
+
+    for (int i = 0; i < inputs.size(); ++i) {
+        QJsonObject obj = inputs[i].toObject();
+        if (obj["inputName"].toString() == inputName) {
+            obj["inversion"] = inversion;
+            inputs[i] = obj;
+            found = true;
+            break;
+        }
+    }
+
+    if (found) {
+        profileObject["inputs"] = inputs;
+    }
+}
+
 
 bool ProfileManager::removeInput(const QString& name) {
     QJsonArray inputs = profileObject["inputs"].toArray();

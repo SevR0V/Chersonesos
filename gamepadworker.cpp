@@ -71,47 +71,6 @@ void GamepadWorker::stop()
     qDebug() << "GamepadWorker stopped";
 }
 
-// void GamepadWorker::pollDevices()
-// {
-//     if (!running) return;
-
-//     SDL_UpdateJoysticks(); // Обновляем состояние всех джойстиков
-
-//     int numJoysticks = 0;
-//     SDL_GetJoysticks(&numJoysticks);
-//     if (numJoysticks != lastNumJoysticks) {
-//         updateDeviceList();
-//     }
-
-//     if (primaryJoystick) {
-//         for (int i = 0; i < SDL_GetNumJoystickButtons(primaryJoystick); ++i) {
-//             if (SDL_GetJoystickButton(primaryJoystick, i)) {
-//                 emit primaryButtonPressed(i);
-//             }
-//         }
-//         for (int i = 0; i < SDL_GetNumJoystickAxes(primaryJoystick); ++i) {
-//             Sint16 axisValue = SDL_GetJoystickAxis(primaryJoystick, i);
-//             if (abs(axisValue) > 1000) {
-//                 emit primaryAxisMoved(i, axisValue);
-//             }
-//         }
-//     }
-
-//     if (secondaryJoystick) {
-//         for (int i = 0; i < SDL_GetNumJoystickButtons(secondaryJoystick); ++i) {
-//             if (SDL_GetJoystickButton(secondaryJoystick, i)) {
-//                 emit secondaryButtonPressed(i);
-//             }
-//         }
-//         for (int i = 0; i < SDL_GetNumJoystickAxes(secondaryJoystick); ++i) {
-//             Sint16 axisValue = SDL_GetJoystickAxis(secondaryJoystick, i);
-//             if (abs(axisValue) > 1000) {
-//                 emit secondaryAxisMoved(i, axisValue);
-//             }
-//         }
-//     }
-// }
-
 void GamepadWorker::pollDevices() {
     if (!running) return;
 
@@ -144,6 +103,24 @@ void GamepadWorker::pollDevices() {
                 primaryAxisValues[i] = 0;
             }
         }
+
+        for (int i = 0; i < SDL_GetNumJoystickHats(primaryJoystick); ++i) {
+            Uint8 hatState = SDL_GetJoystickHat(primaryJoystick, i);
+            if (hatState != SDL_HAT_CENTERED) {
+                if (hatState & SDL_HAT_UP) {
+                    emit primaryHatPressed(i, "Up");
+                }
+                if (hatState & SDL_HAT_DOWN) {
+                    emit primaryHatPressed(i, "Down");
+                }
+                if (hatState & SDL_HAT_LEFT) {
+                    emit primaryHatPressed(i, "Left");
+                }
+                if (hatState & SDL_HAT_RIGHT) {
+                    emit primaryHatPressed(i, "Right");
+                }
+            }
+        }
     } else {
         primaryAxisValues.clear();
     }
@@ -167,6 +144,24 @@ void GamepadWorker::pollDevices() {
             } else if (abs(axisValue) <= 1000 && secondaryAxisValues[i] != 0) {
                 emit secondaryAxisMoved(i, 0);
                 secondaryAxisValues[i] = 0;
+            }
+        }
+
+        for (int i = 0; i < SDL_GetNumJoystickHats(secondaryJoystick); ++i) {
+            Uint8 hatState = SDL_GetJoystickHat(secondaryJoystick, i);
+            if (hatState != SDL_HAT_CENTERED) {
+                if (hatState & SDL_HAT_UP) {
+                    emit secondaryHatPressed(i, "Up");
+                }
+                if (hatState & SDL_HAT_DOWN) {
+                    emit secondaryHatPressed(i, "Down");
+                }
+                if (hatState & SDL_HAT_LEFT) {
+                    emit secondaryHatPressed(i, "Left");
+                }
+                if (hatState & SDL_HAT_RIGHT) {
+                    emit secondaryHatPressed(i, "Right");
+                }
             }
         }
     } else {

@@ -16,6 +16,10 @@ ControlWindow::ControlWindow(QWidget *parent)
     isJoyListenerFinished = true;
     progressTimer = new QTimer(this);
     connect(progressTimer, &QTimer::timeout, this, &ControlWindow::updateProgress);
+    QList<QCheckBox*> checkBoxes = findChildren<QCheckBox*>();
+    for (QCheckBox* checkBox : checkBoxes) {
+        connect(checkBox, &QCheckBox::toggled, this, &ControlWindow::onInversionCBvalueChange);
+    }
     //джойстик
     profileManager = new ProfileManager;
     currentPrimaryDeviceName = "No Device";
@@ -41,6 +45,8 @@ ControlWindow::ControlWindow(QWidget *parent)
     connect(worker, &GamepadWorker::primaryAxisMoved, this, &ControlWindow::onPrimaryAxisMoved);
     connect(worker, &GamepadWorker::secondaryButtonPressed, this, &ControlWindow::onSecondaryButtonPressed);
     connect(worker, &GamepadWorker::secondaryAxisMoved, this, &ControlWindow::onSecondaryAxisMoved);
+    connect(worker, &GamepadWorker::primaryHatPressed, this, &ControlWindow::onPrimaryHatPressed);
+    connect(worker, &GamepadWorker::secondaryHatPressed, this, &ControlWindow::onSecondaryHatPressed);
     connect(worker, &GamepadWorker::deviceListUpdated, this, &ControlWindow::updateDeviceList);
     connect(this, &ControlWindow::destroyed, worker, &GamepadWorker::stop);
     connect(workerThread, &QThread::finished, worker, &GamepadWorker::deleteLater);
@@ -277,7 +283,15 @@ void ControlWindow::onSaveButtonPressed()
     profileManager->save();
 }
 
-void ControlWindow::profileActionDetected(QString inputType, int inputIdx, bool isInverted)
+void ControlWindow::onInversionCBvalueChange(bool checked){
+    QCheckBox* checkBox = qobject_cast<QCheckBox*>(sender());
+    if (checkBox) {
+        QString inputName = checkBox->objectName().remove("Inv");
+        profileManager->setInversion(inputName, checked);
+    }
+}
+
+void ControlWindow::profileActionDetected(QString inputType, int inputIdx)
 {
     if(activeInputName == "") return;
     if(isJoyListenerFinished) return;
@@ -286,8 +300,8 @@ void ControlWindow::profileActionDetected(QString inputType, int inputIdx, bool 
     qDebug() << activeLineEdit;
     QString input = inputType + " " + QString::number(inputIdx);
     activeLineEdit->setText(input);
-    bool isSecondary = activeInputName.toLower().contains("secondary");
-    ControlWindow::profileManager->addInput(activeInputName, input, isSecondary, isInverted);
+    bool isSecondary = activeInputName.contains("secondary", Qt::CaseInsensitive);
+    ControlWindow::profileManager->addInput(activeInputName, input, isSecondary);
     qDebug() << activeInputName << " " << input << " " << isSecondary << false;
     stopProgressCountdown();
 }
@@ -295,31 +309,47 @@ void ControlWindow::profileActionDetected(QString inputType, int inputIdx, bool 
 void ControlWindow::onPrimaryButtonPressed(int button)
 {
     // qDebug() << "Primary Button" << button << "pressed";
-    if(! activeInputName.toLower().contains("primary")) return;
-    if(! activeInputName.toLower().contains("but")) return;
-    ControlWindow::profileActionDetected("button", button, false);
+    if(! activeInputName.contains("primary", Qt::CaseInsensitive)) return;
+    if(! activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("button", button);
 }
 
 void ControlWindow::onPrimaryAxisMoved(int axis, Sint16 value)
 {
     qDebug() << "Primary Axis" << axis << ":" << value;
-    if(! activeInputName.toLower().contains("primary")) return;
-    if(activeInputName.toLower().contains("but")) return;
-    ControlWindow::profileActionDetected("axis", axis, false);
+    if(! activeInputName.contains("primary", Qt::CaseInsensitive)) return;
+    if(activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("axis", axis);
+}
+
+void ControlWindow::onPrimaryHatPressed(int hat, QString direction)
+{
+    // qDebug() << "Primary Button" << button << "pressed";
+    if(! activeInputName.contains("primary", Qt::CaseInsensitive)) return;
+    if(! activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("hat_" + direction, hat);
 }
 
 void ControlWindow::onSecondaryButtonPressed(int button)
 {
     // qDebug() << "Secondary Button" << button << "pressed";
-    if(! activeInputName.toLower().contains("secondary")) return;
-    if(! activeInputName.toLower().contains("but")) return;
-    ControlWindow::profileActionDetected("button", button, false);
+    if(! activeInputName.contains("secondary", Qt::CaseInsensitive)) return;
+    if(! activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("button", button);
 }
 
 void ControlWindow::onSecondaryAxisMoved(int axis, Sint16 value)
 {
     // qDebug() << "Secondary Axis" << axis << ":" << value;
-    if(! activeInputName.toLower().contains("secondary")) return;
-    if(activeInputName.toLower().contains("but")) return;
-    ControlWindow::profileActionDetected("axis", axis, false);
+    if(! activeInputName.contains("secondary", Qt::CaseInsensitive)) return;
+    if(activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("axis", axis);
+}
+
+void ControlWindow::onSecondaryHatPressed(int hat, QString direction)
+{
+    // qDebug() << "Secondary Button" << button << "pressed";
+    if(! activeInputName.contains("secondary", Qt::CaseInsensitive)) return;
+    if(! activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("hat_" + direction, hat);
 }

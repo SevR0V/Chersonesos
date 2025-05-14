@@ -43,6 +43,8 @@ private slots:
     void onPrimaryAxisMoved(int axis, Sint16 value);
     void onSecondaryButtonPressed(int button);
     void onSecondaryAxisMoved(int axis, Sint16 value);
+    void onPrimaryHatPressed(int hat, QString direction);
+    void onSecondaryHatPressed(int hat, QString direction);
 
 public slots:
     void stopProgressCountdown();
@@ -52,6 +54,7 @@ private:
     // гуишные штучки
     void replaceLineEdits(QWidget* widget);
     void replaceLineEditsInWidget(QWidget *widget, QWidget *mainWidget);
+    void onInversionCBvalueChange(bool checked);
     QTimer *progressTimer;
     void onSaveButtonPressed();
     // геймпаддные штучки
@@ -62,7 +65,7 @@ private:
 
     QThread *workerThread;
     GamepadWorker *worker;
-    void profileActionDetected(QString inputType, int inputIdx, bool isInverted);
+    void profileActionDetected(QString inputType, int inputIdx);
 };
 
 #endif // CONTROLWINDOW_H

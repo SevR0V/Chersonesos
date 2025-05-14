@@ -20,8 +20,8 @@ public:
     void setDevices(const QString& primary, const QString& secondary);
     void addInput(const QString& name,
                   const QString& input,
-                  const bool isSecondaryInput,
-                  bool inversion);
+                  const bool isSecondaryInput);
+    void setInversion(const QString& inputName, const bool inversion);
     // Утилиты
     QStringList listAvailableProfiles();
     QJsonObject getProfile() const;

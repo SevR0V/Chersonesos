@@ -28,6 +28,8 @@ signals:
     void secondaryButtonPressed(int button);
     void secondaryAxisMoved(int axis, Sint16 value);
     void deviceListUpdated(const QStringList &deviceNames);
+    void primaryHatPressed(int hat, const QString &direction);
+    void secondaryHatPressed(int hat, const QString &direction);
 
 private:
     void deactivateJoystick(SDL_Joystick *&joystick);
