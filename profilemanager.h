@@ -13,16 +13,15 @@ public:
     bool load(const QString& filePath);
     bool loadFromProfileName(const QString& profileName);
     bool save();
+    bool removeInput(const QString& name);
 
     // Управление данными
     void setProfileName(const QString& name);
     void setDevices(const QString& primary, const QString& secondary);
     void addInput(const QString& name,
-                  const QString& primaryInput,
-                  const QString& secondaryInput,
-                  bool primaryInv,
-                  bool secondaryInv);
-
+                  const QString& input,
+                  const bool isSecondaryInput,
+                  bool inversion);
     // Утилиты
     QStringList listAvailableProfiles();
     QJsonObject getProfile() const;

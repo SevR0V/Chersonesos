@@ -1510,7 +1510,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryRollInc">
+              <widget class="QLineEdit" name="primaryRollIncBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1523,7 +1523,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryRollInc">
+              <widget class="QLineEdit" name="secondaryRollIncBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1562,7 +1562,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryRollDec">
+              <widget class="QLineEdit" name="primaryRollDecBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1575,7 +1575,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryRollDec">
+              <widget class="QLineEdit" name="secondaryRollDecBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1614,7 +1614,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryPitchInc">
+              <widget class="QLineEdit" name="primaryPitchIncBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1627,7 +1627,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryPitchInc">
+              <widget class="QLineEdit" name="secondaryPitchIncBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1666,7 +1666,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryPitchDec">
+              <widget class="QLineEdit" name="primaryPitchDecBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1679,7 +1679,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryPitchDec">
+              <widget class="QLineEdit" name="secondaryPitchDecBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1718,7 +1718,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryCamUp">
+              <widget class="QLineEdit" name="primaryCamUpBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1731,7 +1731,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryCamUp">
+              <widget class="QLineEdit" name="secondaryCamUpBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1770,7 +1770,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryCamDown">
+              <widget class="QLineEdit" name="primaryCamDownBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1783,7 +1783,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryCamDown">
+              <widget class="QLineEdit" name="secondaryCamDownBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1822,7 +1822,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryManLeft">
+              <widget class="QLineEdit" name="primaryManLeftBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1835,7 +1835,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryManLeft">
+              <widget class="QLineEdit" name="secondaryManLeftBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1874,7 +1874,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryManRight">
+              <widget class="QLineEdit" name="primaryManRightBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1887,7 +1887,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryManRight">
+              <widget class="QLineEdit" name="secondaryManRightBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1926,7 +1926,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryManClose">
+              <widget class="QLineEdit" name="primaryManCloseBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1939,7 +1939,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryManClose">
+              <widget class="QLineEdit" name="secondaryManCloseBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1978,7 +1978,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryManOpen">
+              <widget class="QLineEdit" name="primaryManOpenBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -1991,7 +1991,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryManOpen">
+              <widget class="QLineEdit" name="secondaryManOpenBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -2030,7 +2030,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryLightsOn">
+              <widget class="QLineEdit" name="primaryLightsOnBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -2043,7 +2043,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryLightsOn">
+              <widget class="QLineEdit" name="secondaryLightsOnBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -2082,7 +2082,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryPosReset">
+              <widget class="QLineEdit" name="primaryPosResetBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -2095,7 +2095,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryPosReset">
+              <widget class="QLineEdit" name="secondaryPosResetBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -2134,7 +2134,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="primaryMaster">
+              <widget class="QLineEdit" name="primaryMasterBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>
@@ -2147,7 +2147,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="secondaryMaster">
+              <widget class="QLineEdit" name="secondaryMasterBut">
                <property name="cursor">
                 <cursorShape>ArrowCursor</cursorShape>
                </property>

@@ -41,6 +41,8 @@ private:
     QTimer *timer;
     bool running = true;
     QMap<QString, SDL_Joystick*> joysticks;
+    std::vector<Sint16> primaryAxisValues;
+    std::vector<Sint16> secondaryAxisValues;
 
     static const QString NO_DEVICE_NAME;
 };

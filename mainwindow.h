@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include "controlwindow.h"
+#include "profilemanager.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -17,6 +18,8 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+
+    ProfileManager *profileManager;
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
