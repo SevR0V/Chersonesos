@@ -45,6 +45,7 @@ private slots:
     void onSecondaryAxisMoved(int axis, Sint16 value);
     void onPrimaryHatPressed(int hat, QString direction);
     void onSecondaryHatPressed(int hat, QString direction);
+    void onLoadProfileBtnClick();
 
 public slots:
     void stopProgressCountdown();
@@ -57,11 +58,11 @@ private:
     void onInversionCBvalueChange(bool checked);
     QTimer *progressTimer;
     void onSaveButtonPressed();
+    void updateProfileOnGUI();
     // геймпаддные штучки
     QString currentPrimaryDeviceName;
     QString currentSecondaryDeviceName;
     QString activeInputName;
-
 
     QThread *workerThread;
     GamepadWorker *worker;

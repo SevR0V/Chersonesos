@@ -3,6 +3,7 @@
 #include "customlineedit.h"
 #include <QDebug>
 #include <QTimer>
+#include <QJsonArray>
 
 
 ControlWindow::ControlWindow(QWidget *parent)
@@ -20,6 +21,8 @@ ControlWindow::ControlWindow(QWidget *parent)
     for (QCheckBox* checkBox : checkBoxes) {
         connect(checkBox, &QCheckBox::toggled, this, &ControlWindow::onInversionCBvalueChange);
     }
+    ui->profileList->addItems(profileManager->listAvailableProfiles());
+    connect(ui->loadProfileBut, &QPushButton::clicked, this, &ControlWindow::onLoadProfileBtnClick);
     //джойстик
     profileManager = new ProfileManager;
     currentPrimaryDeviceName = "No Device";
@@ -55,6 +58,8 @@ ControlWindow::ControlWindow(QWidget *parent)
     checkForDeviceChanges();
 
     //Тут подключаем джойстик после загрузки из конфига
+    worker->setPrimaryDevice(currentPrimaryDeviceName);
+    ui->primaryDeviceList->setCurrentIndex(ui->primaryDeviceList->findText(currentPrimaryDeviceName));
     worker->setSecondaryDevice(currentSecondaryDeviceName);
     ui->secondaryDeviceList->setCurrentIndex(ui->secondaryDeviceList->findText(currentSecondaryDeviceName));
 }
@@ -281,6 +286,9 @@ void ControlWindow::onSaveButtonPressed()
     profileManager->setProfileName(ui->profileNameVal->text());
     profileManager->setDevices(currentPrimaryDeviceName, currentSecondaryDeviceName);
     profileManager->save();
+    ui->profileList->clear();
+    ui->profileList->addItems(profileManager->listAvailableProfiles());
+    ui->profileList->setCurrentText(ui->profileNameVal->text());
 }
 
 void ControlWindow::onInversionCBvalueChange(bool checked){
@@ -304,6 +312,71 @@ void ControlWindow::profileActionDetected(QString inputType, int inputIdx)
     ControlWindow::profileManager->addInput(activeInputName, input, isSecondary);
     qDebug() << activeInputName << " " << input << " " << isSecondary << false;
     stopProgressCountdown();
+}
+
+void ControlWindow::onLoadProfileBtnClick()
+{
+    QString profileName = ui->profileList->currentText();
+    if (profileManager->loadFromProfileName(profileName)){
+        qDebug() << "profile " << profileName << " loaded";
+    }
+    updateProfileOnGUI();
+}
+
+void ControlWindow::updateProfileOnGUI()
+{
+    QJsonObject controlProfile = profileManager->getProfile();
+    QJsonValue profileName = controlProfile["profileName"];
+    QJsonObject devices = controlProfile["devices"].toObject();
+    QJsonArray inputs = controlProfile["inputs"].toArray();
+    ui->profileNameVal->setText(profileName.toString());
+    currentPrimaryDeviceName = devices["primary"].toString();
+    currentSecondaryDeviceName = devices["secondary"].toString();
+    if (ui->primaryDeviceList->findText(currentPrimaryDeviceName) == -1){
+        ui->primaryDeviceList->addItem("[offline]" + currentPrimaryDeviceName);
+        ui->primaryDeviceList->setCurrentIndex(ui->primaryDeviceList->findText("[offline]" + currentPrimaryDeviceName));
+        currentPrimaryDeviceName = "No Device";
+        worker->setPrimaryDevice("No Device");
+    } else {
+        ui->primaryDeviceList->setCurrentIndex(ui->primaryDeviceList->findText(currentPrimaryDeviceName));
+        worker->setSecondaryDevice(currentPrimaryDeviceName);
+    }
+    if (ui->secondaryDeviceList->findText(currentSecondaryDeviceName) == -1){
+        ui->secondaryDeviceList->addItem("[offline]" + currentSecondaryDeviceName);
+        ui->secondaryDeviceList->setCurrentIndex(ui->secondaryDeviceList->findText("[offline]" + currentSecondaryDeviceName));
+        currentSecondaryDeviceName = "No Device";
+        worker->setSecondaryDevice("No Device");
+    } else {
+        worker->setSecondaryDevice(currentSecondaryDeviceName);
+        ui->secondaryDeviceList->setCurrentIndex(ui->secondaryDeviceList->findText(currentSecondaryDeviceName));
+    }
+
+    QList<QCheckBox*> checkBoxes = findChildren<QCheckBox*>();
+    for (QCheckBox* checkBox : checkBoxes) {
+        checkBox->setChecked(false);
+    }
+
+
+    QList<CustomLineEdit*> lineEdits = findChildren<CustomLineEdit*>();
+    for (CustomLineEdit* lineEdit : lineEdits) {
+        lineEdit->setText("");
+    }
+
+    for (const QJsonValue& value : inputs) {
+        QJsonObject obj = value.toObject();
+        QString name = obj["inputName"].toString();
+        QString input = obj["input"].toString();
+        bool inverted = obj["inversion"].toBool();
+        qDebug() << name;
+        CustomLineEdit* activeLineEdit = this->findChild<CustomLineEdit*>(name);
+        QCheckBox* activeCheckBox = this->findChild<QCheckBox*>(name+"Inv");
+        if(activeLineEdit){
+            activeLineEdit->setText(input);
+        }
+        if(activeCheckBox){
+            activeCheckBox->setChecked(inverted);
+        }
+    }
 }
 
 void ControlWindow::onPrimaryButtonPressed(int button)

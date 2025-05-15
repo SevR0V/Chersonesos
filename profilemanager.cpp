@@ -99,7 +99,7 @@ void ProfileManager::setProfileName(const QString& name) {
 void ProfileManager::setDevices(const QString& primary, const QString& secondary) {
     QJsonObject devices;
     devices["primary"] = primary;
-    devices["sceondary"] = secondary;
+    devices["secondary"] = secondary;
     profileObject["devices"] = devices;
 }
 
