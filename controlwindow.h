@@ -5,6 +5,7 @@
 #include <QThread>
 #include "gamepadworker.h"
 #include <SDL3/SDL.h>
+#include "profilemanager.h"
 
 namespace Ui {
 class ControlWindow;
@@ -25,6 +26,7 @@ public:
     ~ControlWindow();
     void controlsButtonPressed();
     bool isJoyListenerFinished;
+    ProfileManager *profileManager;
 
 private slots:
     // гуишные штучки
@@ -41,6 +43,9 @@ private slots:
     void onPrimaryAxisMoved(int axis, Sint16 value);
     void onSecondaryButtonPressed(int button);
     void onSecondaryAxisMoved(int axis, Sint16 value);
+    void onPrimaryHatPressed(int hat, QString direction);
+    void onSecondaryHatPressed(int hat, QString direction);
+    void onLoadProfileBtnClick();
 
 public slots:
     void stopProgressCountdown();
@@ -50,13 +55,18 @@ private:
     // гуишные штучки
     void replaceLineEdits(QWidget* widget);
     void replaceLineEditsInWidget(QWidget *widget, QWidget *mainWidget);
+    void onInversionCBvalueChange(bool checked);
     QTimer *progressTimer;
+    void onSaveButtonPressed();
+    void updateProfileOnGUI();
     // геймпаддные штучки
-    QString currentPrimaryName;
-    QString currentSecondaryName;
+    QString currentPrimaryDeviceName;
+    QString currentSecondaryDeviceName;
+    QString activeInputName;
 
     QThread *workerThread;
     GamepadWorker *worker;
+    void profileActionDetected(QString inputType, int inputIdx);
 };
 
 #endif // CONTROLWINDOW_H

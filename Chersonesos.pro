@@ -13,13 +13,15 @@ SOURCES += \
     main.cpp \
     customlineedit.cpp \
     gamepadworker.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    profilemanager.cpp
 
 HEADERS += \
     controlwindow.h \
     customlineedit.h \
     gamepadworker.h \
-    mainwindow.h
+    mainwindow.h \
+    profilemanager.h
 
 FORMS += \
     controlwindow.ui \
@@ -36,7 +38,7 @@ INCLUDEPATH += $$PWD/SDL3/include
 DEPENDPATH += $$PWD/SDL3/include
 
 CONFIG(release, debug|release) {
-    QMAKE_POST_LINK += $$quote(C:/Qt/6.8.2/msvc2022_64/bin/windeployqt6.exe $$OUT_PWD/release/$${TARGET}.exe)
+    QMAKE_POST_LINK += $$quote($$[QT_INSTALL_BINS]/windeployqt.exe $$OUT_PWD/release/$${TARGET}.exe)
 } else {
-    QMAKE_POST_LINK += $$quote(C:/Qt/6.8.2/msvc2022_64/bin/windeployqt6.exe $$OUT_PWD/debug/$${TARGET}.exe)
+    QMAKE_POST_LINK += $$quote($$[QT_INSTALL_BINS]/windeployqt.exe $$OUT_PWD/debug/$${TARGET}.exe)
 }

@@ -1,6 +1,6 @@
 # This file is used to ignore files which are generated
 # ----------------------------------------------------------------------------
-
+*.idx
 *~
 *.autosave
 *.a
@@ -80,3 +80,7 @@ CMakeLists.txt.user*
 .rcc/
 .uic/
 /build*/
+*.stash
+*.bat
+/Chersonesos-build
+/.qtc_clangd

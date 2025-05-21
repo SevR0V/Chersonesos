@@ -28,6 +28,8 @@ signals:
     void secondaryButtonPressed(int button);
     void secondaryAxisMoved(int axis, Sint16 value);
     void deviceListUpdated(const QStringList &deviceNames);
+    void primaryHatPressed(int hat, const QString &direction);
+    void secondaryHatPressed(int hat, const QString &direction);
 
 private:
     void deactivateJoystick(SDL_Joystick *&joystick);
@@ -41,6 +43,8 @@ private:
     QTimer *timer;
     bool running = true;
     QMap<QString, SDL_Joystick*> joysticks;
+    std::vector<Sint16> primaryAxisValues;
+    std::vector<Sint16> secondaryAxisValues;
 
     static const QString NO_DEVICE_NAME;
 };

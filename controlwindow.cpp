@@ -3,6 +3,8 @@
 #include "customlineedit.h"
 #include <QDebug>
 #include <QTimer>
+#include <QJsonArray>
+
 
 ControlWindow::ControlWindow(QWidget *parent)
     : QWidget(parent)
@@ -12,17 +14,26 @@ ControlWindow::ControlWindow(QWidget *parent)
 
     //GUI
     replaceLineEdits(ui->scrollArea->widget());
-    isJoyListenerFinished = false;
+    isJoyListenerFinished = true;
     progressTimer = new QTimer(this);
     connect(progressTimer, &QTimer::timeout, this, &ControlWindow::updateProgress);
+    QList<QCheckBox*> checkBoxes = findChildren<QCheckBox*>();
+    for (QCheckBox* checkBox : checkBoxes) {
+        connect(checkBox, &QCheckBox::toggled, this, &ControlWindow::onInversionCBvalueChange);
+    }
+    ui->profileList->addItems(profileManager->listAvailableProfiles());
+    connect(ui->loadProfileBut, &QPushButton::clicked, this, &ControlWindow::onLoadProfileBtnClick);
     //джойстик
-    currentPrimaryName = "No Device";
-    currentSecondaryName = "No Device";
+    profileManager = new ProfileManager;
+    currentPrimaryDeviceName = "No Device";
+    currentSecondaryDeviceName = "No Device";
 
     connect(ui->primaryDeviceList, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ControlWindow::onPrimaryDeviceChanged);
     connect(ui->secondaryDeviceList, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ControlWindow::onSecondaryDeviceChanged);
+    connect(ui->saveProfileBut, &QPushButton::clicked,
+            this, &ControlWindow::onSaveButtonPressed);
 
     QTimer *updateTimer = new QTimer(this);
     connect(updateTimer, &QTimer::timeout, this, &ControlWindow::checkForDeviceChanges);
@@ -37,6 +48,8 @@ ControlWindow::ControlWindow(QWidget *parent)
     connect(worker, &GamepadWorker::primaryAxisMoved, this, &ControlWindow::onPrimaryAxisMoved);
     connect(worker, &GamepadWorker::secondaryButtonPressed, this, &ControlWindow::onSecondaryButtonPressed);
     connect(worker, &GamepadWorker::secondaryAxisMoved, this, &ControlWindow::onSecondaryAxisMoved);
+    connect(worker, &GamepadWorker::primaryHatPressed, this, &ControlWindow::onPrimaryHatPressed);
+    connect(worker, &GamepadWorker::secondaryHatPressed, this, &ControlWindow::onSecondaryHatPressed);
     connect(worker, &GamepadWorker::deviceListUpdated, this, &ControlWindow::updateDeviceList);
     connect(this, &ControlWindow::destroyed, worker, &GamepadWorker::stop);
     connect(workerThread, &QThread::finished, worker, &GamepadWorker::deleteLater);
@@ -45,8 +58,10 @@ ControlWindow::ControlWindow(QWidget *parent)
     checkForDeviceChanges();
 
     //Тут подключаем джойстик после загрузки из конфига
-    worker->setSecondaryDevice(currentSecondaryName);
-    ui->secondaryDeviceList->setCurrentIndex(ui->secondaryDeviceList->findText(currentSecondaryName));
+    worker->setPrimaryDevice(currentPrimaryDeviceName);
+    ui->primaryDeviceList->setCurrentIndex(ui->primaryDeviceList->findText(currentPrimaryDeviceName));
+    worker->setSecondaryDevice(currentSecondaryDeviceName);
+    ui->secondaryDeviceList->setCurrentIndex(ui->secondaryDeviceList->findText(currentSecondaryDeviceName));
 }
 
 ControlWindow::~ControlWindow()
@@ -73,7 +88,6 @@ QLayout* findParentLayout(QWidget* widget, QLayout* layout) {
             return layout;
         }
 
-        // Если элемент — это layout, проверяем его рекурсивно
         if (QLayout* subLayout = item->layout()) {
             QLayout* found = findParentLayout(widget, subLayout);
             if (found) {
@@ -81,7 +95,6 @@ QLayout* findParentLayout(QWidget* widget, QLayout* layout) {
             }
         }
 
-        // Если элемент — это виджет, проверяем его layout
         if (QWidget* subWidget = item->widget()) {
             if (QLayout* subWidgetLayout = subWidget->layout()) {
                 QLayout* found = findParentLayout(widget, subWidgetLayout);
@@ -129,7 +142,6 @@ void ControlWindow::replaceLineEdits(QWidget *widget) {
                 continue;
             }
 
-            // Создаем новый CustomLineEdit
             CustomLineEdit *customLineEdit = new CustomLineEdit();
             customLineEdit->setText(lineEdit->text());
             customLineEdit->setPlaceholderText(lineEdit->placeholderText());
@@ -147,7 +159,6 @@ void ControlWindow::replaceLineEdits(QWidget *widget) {
             customLineEdit->setCursorPosition(lineEdit->cursorPosition());
             customLineEdit->setContextMenuPolicy(lineEdit->contextMenuPolicy());
 
-            // Подключаем сигналы
             connect(customLineEdit, &CustomLineEdit::leftClicked, this, [this, customLineEdit]() {
                 onLineEditLeftClicked(customLineEdit->objectName());
             });
@@ -155,53 +166,66 @@ void ControlWindow::replaceLineEdits(QWidget *widget) {
                 onLineEditRightClicked(customLineEdit->objectName());
             });
 
-            // Приводим QLayout к QBoxLayout, так как у вас только QVBoxLayout и QHBoxLayout
             if (QBoxLayout* boxLayout = qobject_cast<QBoxLayout*>(layout)) {
-                layout->removeWidget(lineEdit);  // Удаляем старый виджет
-                boxLayout->insertWidget(index, customLineEdit);  // Вставляем новый на ту же позицию
+                layout->removeWidget(lineEdit);
+                boxLayout->insertWidget(index, customLineEdit);
             } else {
-                delete customLineEdit;  // Очищаем память, если не удалось вставить
+                delete customLineEdit;
                 continue;
             }
 
-            delete lineEdit;  // Удаляем старый QLineEdit
+            delete lineEdit;
         }
     }
 }
 
 void ControlWindow::onLineEditLeftClicked(QString name) {
+    if(! isJoyListenerFinished) return;
     qDebug() << "Левая кнопка нажата на LineEdit с именем:" << name;
+    if (name.toLower().contains("primary") && currentPrimaryDeviceName.toLower() == "no device") return;
+    if (name.toLower().contains("secondary") && currentSecondaryDeviceName.toLower() == "no device") return;
+    qDebug() << currentPrimaryDeviceName.toLower();
     startProgressCountdown();
+    activeInputName = name;
 }
 
 void ControlWindow::onLineEditRightClicked(QString name) {
     qDebug() << "Правая кнопка нажата на LineEdit с именем:" << name;
-    stopProgressCountdown();
+    if(isJoyListenerFinished){
+        CustomLineEdit* activeLineEdit = this->findChild<CustomLineEdit*>(name);
+        if(! activeLineEdit) return;
+        activeLineEdit->setText("");
+        profileManager->removeInput(name);
+    } else {
+        stopProgressCountdown();
+    }
+    activeInputName = "";
 }
 
 void ControlWindow::startProgressCountdown() {
-    if (!progressTimer->isActive()) { // Проверяем, не запущен ли уже таймер
-        ui->inputProgressBar->setValue(5000); // Сбрасываем прогресс-бар на максимум
-        isJoyListenerFinished = false;              // Сбрасываем флаг
-        progressTimer->start(10);                // Запускаем таймер (10 мс интервал)
+    if (!progressTimer->isActive()) {
+        ui->inputProgressBar->setValue(5000);
+        isJoyListenerFinished = false;
+        progressTimer->start(10);
     }
 }
 
 void ControlWindow::stopProgressCountdown() {
-    if (progressTimer->isActive()) { // Проверяем, активен ли таймер
-        progressTimer->stop();       // Останавливаем таймер
+    if (progressTimer->isActive()) {
+        progressTimer->stop();
         isJoyListenerFinished = true;
         ui->inputProgressBar->setValue(0);
+        activeInputName = "";
     }
 }
 
 void ControlWindow::updateProgress() {
     int currentValue = ui->inputProgressBar->value();
     if (currentValue > 0) {
-        ui->inputProgressBar->setValue(currentValue - 10); // Уменьшение на 10 за 10 мс
+        ui->inputProgressBar->setValue(currentValue - 10);
     } else {
-        progressTimer->stop(); // Останавливаем таймер
-        isJoyListenerFinished = true; // Переключаем флаг
+        progressTimer->stop();
+        isJoyListenerFinished = true;
     }
 }
 // Функции джойстика
@@ -238,7 +262,7 @@ void ControlWindow::onPrimaryDeviceChanged(int index)
     QString deviceName = ui->primaryDeviceList->itemText(index);
     qDebug() << "Primary device changed to:" << deviceName;
     worker->setPrimaryDevice(deviceName);
-    currentPrimaryName = deviceName;
+    currentPrimaryDeviceName = deviceName;
 }
 
 void ControlWindow::onSecondaryDeviceChanged(int index)
@@ -246,7 +270,7 @@ void ControlWindow::onSecondaryDeviceChanged(int index)
     QString deviceName = ui->secondaryDeviceList->itemText(index);
     qDebug() << "Secondary device changed to:" << deviceName;
     worker->setSecondaryDevice(deviceName);
-    currentSecondaryName = deviceName;
+    currentSecondaryDeviceName = deviceName;
 }
 
 void ControlWindow::checkForDeviceChanges()
@@ -257,22 +281,148 @@ void ControlWindow::checkForDeviceChanges()
     }
 }
 
+void ControlWindow::onSaveButtonPressed()
+{
+    profileManager->setProfileName(ui->profileNameVal->text());
+    profileManager->setDevices(currentPrimaryDeviceName, currentSecondaryDeviceName);
+    profileManager->save();
+    ui->profileList->clear();
+    ui->profileList->addItems(profileManager->listAvailableProfiles());
+    ui->profileList->setCurrentText(ui->profileNameVal->text());
+}
+
+void ControlWindow::onInversionCBvalueChange(bool checked){
+    QCheckBox* checkBox = qobject_cast<QCheckBox*>(sender());
+    if (checkBox) {
+        QString inputName = checkBox->objectName().remove("Inv");
+        profileManager->setInversion(inputName, checked);
+    }
+}
+
+void ControlWindow::profileActionDetected(QString inputType, int inputIdx)
+{
+    if(activeInputName == "") return;
+    if(isJoyListenerFinished) return;
+    CustomLineEdit* activeLineEdit = this->findChild<CustomLineEdit*>(ControlWindow::activeInputName);
+    if(! activeLineEdit) return;
+    qDebug() << activeLineEdit;
+    QString input = inputType + " " + QString::number(inputIdx);
+    activeLineEdit->setText(input);
+    bool isSecondary = activeInputName.contains("secondary", Qt::CaseInsensitive);
+    ControlWindow::profileManager->addInput(activeInputName, input, isSecondary);
+    qDebug() << activeInputName << " " << input << " " << isSecondary << false;
+    stopProgressCountdown();
+}
+
+void ControlWindow::onLoadProfileBtnClick()
+{
+    QString profileName = ui->profileList->currentText();
+    if (profileManager->loadFromProfileName(profileName)){
+        qDebug() << "profile " << profileName << " loaded";
+    }
+    updateProfileOnGUI();
+}
+
+void ControlWindow::updateProfileOnGUI()
+{
+    QJsonObject controlProfile = profileManager->getProfile();
+    QJsonValue profileName = controlProfile["profileName"];
+    QJsonObject devices = controlProfile["devices"].toObject();
+    QJsonArray inputs = controlProfile["inputs"].toArray();
+    ui->profileNameVal->setText(profileName.toString());
+    currentPrimaryDeviceName = devices["primary"].toString();
+    currentSecondaryDeviceName = devices["secondary"].toString();
+    if (ui->primaryDeviceList->findText(currentPrimaryDeviceName) == -1){
+        ui->primaryDeviceList->addItem("[offline]" + currentPrimaryDeviceName);
+        ui->primaryDeviceList->setCurrentIndex(ui->primaryDeviceList->findText("[offline]" + currentPrimaryDeviceName));
+        currentPrimaryDeviceName = "No Device";
+        worker->setPrimaryDevice("No Device");
+    } else {
+        ui->primaryDeviceList->setCurrentIndex(ui->primaryDeviceList->findText(currentPrimaryDeviceName));
+        worker->setSecondaryDevice(currentPrimaryDeviceName);
+    }
+    if (ui->secondaryDeviceList->findText(currentSecondaryDeviceName) == -1){
+        ui->secondaryDeviceList->addItem("[offline]" + currentSecondaryDeviceName);
+        ui->secondaryDeviceList->setCurrentIndex(ui->secondaryDeviceList->findText("[offline]" + currentSecondaryDeviceName));
+        currentSecondaryDeviceName = "No Device";
+        worker->setSecondaryDevice("No Device");
+    } else {
+        worker->setSecondaryDevice(currentSecondaryDeviceName);
+        ui->secondaryDeviceList->setCurrentIndex(ui->secondaryDeviceList->findText(currentSecondaryDeviceName));
+    }
+
+    QList<QCheckBox*> checkBoxes = findChildren<QCheckBox*>();
+    for (QCheckBox* checkBox : checkBoxes) {
+        checkBox->setChecked(false);
+    }
+
+
+    QList<CustomLineEdit*> lineEdits = findChildren<CustomLineEdit*>();
+    for (CustomLineEdit* lineEdit : lineEdits) {
+        lineEdit->setText("");
+    }
+
+    for (const QJsonValue& value : inputs) {
+        QJsonObject obj = value.toObject();
+        QString name = obj["inputName"].toString();
+        QString input = obj["input"].toString();
+        bool inverted = obj["inversion"].toBool();
+        qDebug() << name;
+        CustomLineEdit* activeLineEdit = this->findChild<CustomLineEdit*>(name);
+        QCheckBox* activeCheckBox = this->findChild<QCheckBox*>(name+"Inv");
+        if(activeLineEdit){
+            activeLineEdit->setText(input);
+        }
+        if(activeCheckBox){
+            activeCheckBox->setChecked(inverted);
+        }
+    }
+}
+
 void ControlWindow::onPrimaryButtonPressed(int button)
 {
-    qDebug() << "Primary Button" << button << "pressed";
+    // qDebug() << "Primary Button" << button << "pressed";
+    if(! activeInputName.contains("primary", Qt::CaseInsensitive)) return;
+    if(! activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("button", button);
 }
 
 void ControlWindow::onPrimaryAxisMoved(int axis, Sint16 value)
 {
     qDebug() << "Primary Axis" << axis << ":" << value;
+    if(! activeInputName.contains("primary", Qt::CaseInsensitive)) return;
+    if(activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("axis", axis);
+}
+
+void ControlWindow::onPrimaryHatPressed(int hat, QString direction)
+{
+    // qDebug() << "Primary Button" << button << "pressed";
+    if(! activeInputName.contains("primary", Qt::CaseInsensitive)) return;
+    if(! activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("hat_" + direction, hat);
 }
 
 void ControlWindow::onSecondaryButtonPressed(int button)
 {
-    qDebug() << "Secondary Button" << button << "pressed";
+    // qDebug() << "Secondary Button" << button << "pressed";
+    if(! activeInputName.contains("secondary", Qt::CaseInsensitive)) return;
+    if(! activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("button", button);
 }
 
 void ControlWindow::onSecondaryAxisMoved(int axis, Sint16 value)
 {
-    qDebug() << "Secondary Axis" << axis << ":" << value;
+    // qDebug() << "Secondary Axis" << axis << ":" << value;
+    if(! activeInputName.contains("secondary", Qt::CaseInsensitive)) return;
+    if(activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("axis", axis);
+}
+
+void ControlWindow::onSecondaryHatPressed(int hat, QString direction)
+{
+    // qDebug() << "Secondary Button" << button << "pressed";
+    if(! activeInputName.contains("secondary", Qt::CaseInsensitive)) return;
+    if(! activeInputName.contains("but", Qt::CaseInsensitive)) return;
+    ControlWindow::profileActionDetected("hat_" + direction, hat);
 }
