@@ -74,7 +74,7 @@ void MainWindow::showHideLeftPanel()
         ui->hideShowButton->setIcon(leftArrow);
 
         setMasterButtonState(ui->masterButton, masterState, isPanelHidden);
-        ui->takeStereoframeButton->setText("Сделать стереокадр");
+        ui->takeStereoframeButton->setText("Сделать стереокадр      ");
         setRecordButtonState(ui->startRecordButton,isRecording, isPanelHidden);
         ui->controlsButton->setText("Управление");
         ui->settingsButton->setText("Настройки");

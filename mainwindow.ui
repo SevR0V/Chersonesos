@@ -264,7 +264,7 @@
           </size>
          </property>
          <property name="text">
-          <string>Сделать стереокадр</string>
+          <string>Сделать стереокадр      </string>
          </property>
          <property name="icon">
           <iconset theme="QIcon::ThemeIcon::CameraPhoto"/>
