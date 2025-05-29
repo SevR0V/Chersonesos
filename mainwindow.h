@@ -4,6 +4,8 @@
 #include <QMainWindow>
 #include "controlwindow.h"
 #include "profilemanager.h"
+#include "controlwindow.h"
+#include "settingsdialog.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -27,9 +29,15 @@ protected:
 private:
     Ui::MainWindow *ui;
     ControlWindow *controlsWindow;
+    SettingsDialog *settingsDialog;
     void controlsButtonPressed();
+    void settingsButtonPressed();
+    void masterSwitch();
     void onResize();
     void startRecord();
+    void showHideLeftPanel();
+    bool isPanelHidden;
     bool isRecording;
+    bool masterState;
 };
 #endif // MAINWINDOW_H

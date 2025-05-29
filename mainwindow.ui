@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>806</width>
+    <width>919</width>
     <height>575</height>
    </rect>
   </property>
@@ -22,88 +22,133 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout_2">
     <item>
-     <widget class="QGroupBox" name="groupBox_2">
+     <widget class="QGroupBox" name="mainGroupBox">
       <property name="sizePolicy">
-       <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+       <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
-      <property name="maximumSize">
-       <size>
-        <width>249</width>
-        <height>16777215</height>
-       </size>
-      </property>
-      <property name="title">
-       <string/>
-      </property>
-      <layout class="QVBoxLayout" name="verticalLayout_2">
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <property name="spacing">
+        <number>4</number>
+       </property>
+       <property name="sizeConstraint">
+        <enum>QLayout::SizeConstraint::SetMinimumSize</enum>
+       </property>
+       <property name="leftMargin">
+        <number>4</number>
+       </property>
+       <property name="topMargin">
+        <number>4</number>
+       </property>
+       <property name="rightMargin">
+        <number>4</number>
+       </property>
+       <property name="bottomMargin">
+        <number>4</number>
+       </property>
        <item>
-        <widget class="QGroupBox" name="groupBox_4">
-         <property name="title">
+        <widget class="QLabel" name="rovStateLabel">
+         <property name="text">
           <string>Состояние ТНПА</string>
          </property>
-         <layout class="QVBoxLayout" name="verticalLayout">
-          <item>
-           <widget class="QLabel" name="onlineLable">
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>217</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Не в сети</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="masterButton">
-            <property name="text">
-             <string>Блокировка ТНПА</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="masterLabel">
-            <property name="maximumSize">
-             <size>
-              <width>217</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Заблокирован</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignmentFlag::AlignCenter</set>
-            </property>
-           </widget>
-          </item>
-         </layout>
         </widget>
        </item>
        <item>
-        <widget class="QGroupBox" name="groupBox">
-         <property name="title">
+        <widget class="QPushButton" name="masterButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>30</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>176</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>Разблокировать ТНПА</string>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>Resources/Icons/Pictogrammers-Material-Lock-outline.ico</normaloff>Resources/Icons/Pictogrammers-Material-Lock-outline.ico</iconset>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="onlineLable">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>217</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>Не в сети</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignmentFlag::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="Line" name="line_3">
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="powerLabel">
+         <property name="text">
           <string>Мощность</string>
          </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="powerGroupBox">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <layout class="QHBoxLayout" name="horizontalLayout">
+          <property name="spacing">
+           <number>0</number>
+          </property>
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
           <item>
            <widget class="QSlider" name="powerSlider">
             <property name="maximumSize">
              <size>
-              <width>144</width>
+              <width>128</width>
               <height>16777215</height>
              </size>
             </property>
@@ -123,6 +168,12 @@
           </item>
           <item>
            <widget class="QSpinBox" name="powerSpinBox">
+            <property name="maximumSize">
+             <size>
+              <width>39</width>
+              <height>16777215</height>
+             </size>
+            </property>
             <property name="readOnly">
              <bool>true</bool>
             </property>
@@ -131,6 +182,9 @@
             </property>
             <property name="keyboardTracking">
              <bool>false</bool>
+            </property>
+            <property name="suffix">
+             <string>%</string>
             </property>
             <property name="maximum">
              <number>100</number>
@@ -141,10 +195,53 @@
         </widget>
        </item>
        <item>
+        <widget class="Line" name="powerBotLine">
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Policy::Expanding</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>17</width>
+           <height>37</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="Line" name="line_2">
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="recordLabel">
+         <property name="text">
+          <string>Запись</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QPushButton" name="takeStereoframeButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <property name="maximumSize">
           <size>
-           <width>219</width>
+           <width>176</width>
            <height>16777215</height>
           </size>
          </property>
@@ -170,9 +267,15 @@
        </item>
        <item>
         <widget class="QPushButton" name="startRecordButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <property name="maximumSize">
           <size>
-           <width>219</width>
+           <width>176</width>
            <height>16777215</height>
           </size>
          </property>
@@ -204,26 +307,30 @@
         </widget>
        </item>
        <item>
-        <spacer name="verticalSpacer">
+        <widget class="Line" name="line">
          <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
+          <enum>Qt::Orientation::Horizontal</enum>
          </property>
-         <property name="sizeType">
-          <enum>QSizePolicy::Policy::Expanding</enum>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="settingsLabel">
+         <property name="text">
+          <string>Настройки</string>
          </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
+        </widget>
        </item>
        <item>
         <widget class="QPushButton" name="controlsButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <property name="maximumSize">
           <size>
-           <width>219</width>
+           <width>176</width>
            <height>16777215</height>
           </size>
          </property>
@@ -246,9 +353,15 @@
        </item>
        <item>
         <widget class="QPushButton" name="settingsButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <property name="maximumSize">
           <size>
-           <width>219</width>
+           <width>176</width>
            <height>16777215</height>
           </size>
          </property>
@@ -273,6 +386,34 @@
      </widget>
     </item>
     <item>
+     <widget class="QPushButton" name="hideShowButton">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>20</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="autoDefault">
+       <bool>false</bool>
+      </property>
+      <property name="default">
+       <bool>false</bool>
+      </property>
+      <property name="flat">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item>
      <widget class="QGroupBox" name="groupBox_3">
       <property name="title">
        <string/>
@@ -293,7 +434,7 @@
        <item>
         <widget class="QWidget" name="videoWidget" native="true">
          <property name="sizePolicy">
-          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+          <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
            <horstretch>0</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
@@ -325,22 +466,5 @@
   </widget>
  </widget>
  <resources/>
- <connections>
-  <connection>
-   <sender>powerSlider</sender>
-   <signal>valueChanged(int)</signal>
-   <receiver>powerSpinBox</receiver>
-   <slot>setValue(int)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>93</x>
-     <y>220</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>173</x>
-     <y>220</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
+ <connections/>
 </ui>
