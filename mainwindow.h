@@ -29,5 +29,7 @@ private:
     ControlWindow *controlsWindow;
     void controlsButtonPressed();
     void onResize();
+    void startRecord();
+    bool isRecording;
 };
 #endif // MAINWINDOW_H
