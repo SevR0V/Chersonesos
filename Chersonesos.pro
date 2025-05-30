@@ -10,6 +10,8 @@ CONFIG += c++17
 
 SOURCES += \
     controlwindow.cpp \
+    iplineedit.cpp \
+    lineeditutils.cpp \
     main.cpp \
     customlineedit.cpp \
     gamepadworker.cpp \
@@ -22,11 +24,14 @@ SOURCES += \
     main.cpp \
     video_recorder.cpp \
     video_streamer.cpp
+    settingsdialog.cpp
 
 HEADERS += \
     controlwindow.h \
     customlineedit.h \
     gamepadworker.h \
+    iplineedit.h \
+    lineeditutils.h \
     mainwindow.h \
     profilemanager.h \
     camera.h \
@@ -36,10 +41,12 @@ HEADERS += \
     logger.h \
     video_recorder.h \
     video_streamer.h
+    settingsdialog.h
 
 FORMS += \
     controlwindow.ui \
-    mainwindow.ui
+    mainwindow.ui \
+    settingsdialog.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -65,3 +72,6 @@ CONFIG(release, debug|release) {
 } else {
     QMAKE_POST_LINK += $$quote($$[QT_INSTALL_BINS]/windeployqt.exe $$OUT_PWD/debug/$${TARGET}.exe)
 }
+
+RESOURCES += \
+    resources.qrc
