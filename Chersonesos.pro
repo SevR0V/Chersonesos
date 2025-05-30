@@ -22,6 +22,7 @@ SOURCES += \
     frame_processor.cpp \
     logger.cpp \
     main.cpp \
+    settingsdialog.cpp \
     video_recorder.cpp \
     video_streamer.cpp
     settingsdialog.cpp
@@ -39,6 +40,7 @@ HEADERS += \
     camera_worker.h \
     frame_processor.h \
     logger.h \
+    settingsdialog.h \
     video_recorder.h \
     video_streamer.h
     settingsdialog.h
