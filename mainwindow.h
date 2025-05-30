@@ -30,8 +30,8 @@ public:
 private slots:
     void processFrame(CameraFrameInfo* camera);
     void handleCameraError(const QString& component, const QString& message);
+    void handleCameraSuccess(const QString& component, const QString& message);
     void afterReconnect(Camera* camera);
-
     void on_takeStereoframeButton_clicked();
 
 protected:
@@ -44,11 +44,13 @@ private:
     QHBoxLayout* m_cameraLayout;
     ControlWindow *controlsWindow;
     SettingsDialog *settingsDialog;
+    QLabel* m_label;
     void controlsButtonPressed();
     void settingsButtonPressed();
     void masterSwitch();
     void onResize();
     void startRecord();
+
     void showHideLeftPanel();
     bool isPanelHidden;
     bool isRecording;

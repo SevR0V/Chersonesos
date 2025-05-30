@@ -8,7 +8,49 @@ void VideoRecorder::setRecordInterval(int interval) {
 }
 
 void VideoRecorder::setStoredVideoFilesLimit(int limit) {
-    m_storedVideoFilesLimit = limit > 0 ? limit : 10;
+    m_storedVideoFilesLimit = limit;
+}
+
+void VideoRecorder::manageStoredFiles() {
+    if (m_storedVideoFilesLimit == 0) {
+        QString errorMsg = QString("Старые записи не удаляются: проверяйте свободное место для камеры %1").arg(m_videoInfo->name);
+        qDebug() << errorMsg;
+        emit errorOccurred("VideoRecorder", errorMsg);
+        return;
+    }
+
+    try {
+        std::vector<std::filesystem::directory_entry> videoFiles;
+        for (const auto& entry : std::filesystem::directory_iterator(m_sessionDirectory)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".avi") {
+                videoFiles.push_back(entry);
+            }
+        }
+
+        std::sort(videoFiles.begin(), videoFiles.end(),
+                  [](const std::filesystem::directory_entry& a, const std::filesystem::directory_entry& b) {
+                      return std::filesystem::last_write_time(a) < std::filesystem::last_write_time(b);
+                  });
+
+        while (videoFiles.size() > static_cast<size_t>(m_storedVideoFilesLimit)) {
+            try {
+                std::filesystem::remove(videoFiles.front().path());
+                qDebug() << "Удален старый видеофайл:" << QString::fromStdString(videoFiles.front().path().string());
+                videoFiles.erase(videoFiles.begin());
+            } catch (const std::filesystem::filesystem_error& e) {
+                QString errorMsg = QString("Ошибка при удалении старого видеофайла %1: %2")
+                                       .arg(QString::fromStdString(videoFiles.front().path().string()))
+                                       .arg(e.what());
+                qDebug() << errorMsg;
+                emit errorOccurred("VideoRecorder", errorMsg);
+            }
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        QString errorMsg = QString("Ошибка при управлении видеофайлами для камеры %1: %2")
+                               .arg(m_videoInfo->name).arg(e.what());
+        qDebug() << errorMsg;
+        emit errorOccurred("VideoRecorder", errorMsg);
+    }
 }
 
 void VideoRecorder::startRecording() {
@@ -193,6 +235,8 @@ void VideoRecorder::startRecording() {
         videoWriter.release();
         qDebug() << "Запись сегмента видео завершена для файла:" << QString::fromStdString(fileName);
         emit recordingFinished();
+
+        manageStoredFiles();
     }
 
     qDebug() << "Запись видео полностью завершена для камеры" << m_videoInfo->name;

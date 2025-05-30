@@ -61,9 +61,16 @@ void CameraWorker::capture() {
                 m_frameInfo->frame.nDataLen = stOutFrame.stFrameInfo.nWidth * stOutFrame.stFrameInfo.nHeight * 3;
                 m_frameInfo->frame.enRenderMode = 0;
 
-                if (m_frameInfo->labelWinId != 0) {
-                    nRet = MV_CC_DisplayOneFrame(m_frameInfo->handle, &m_frameInfo->frame);
-                }
+                //if (m_frameInfo->labelWinId != 0) {
+                    //nRet = MV_CC_DisplayOneFrame(m_frameInfo->handle, &m_frameInfo->frame);
+                //}
+
+                cv::Mat bayerMat(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC1, stOutFrame.pBufAddr);
+
+                cv::cvtColor(bayerMat, bayerMat, cv::COLOR_BayerRG2BGR);
+
+                m_frameInfo->img = QImage(bayerMat.data, bayerMat.cols, bayerMat.rows, bayerMat.step, QImage::Format_RGB888).copy();
+
             }
 
             if (stOutFrame.pBufAddr && stOutFrame.stFrameInfo.nWidth > 0 && stOutFrame.stFrameInfo.nHeight > 0) {

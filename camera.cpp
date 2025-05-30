@@ -5,6 +5,9 @@ Camera::Camera(QObject* parent) : QObject(parent), m_reconnectAttempts(0), m_max
     memset(&m_deviceList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
     m_cameraNames = {"LCamera", "RCamera"};
 
+    m_checkCameraTimer = new QTimer(this);
+    connect(m_checkCameraTimer, &QTimer::timeout, this, &Camera::checkCameras);
+
     cleanupAllCameras();
 
     if (checkCameras() != MV_OK) {
@@ -20,6 +23,13 @@ Camera::~Camera() {
     qDebug() << "Уничтожение объекта Camera...";
     stopAll();
     cleanupAllCameras();
+
+    if (m_checkCameraTimer) {
+        m_checkCameraTimer->stop();
+        delete m_checkCameraTimer;
+        m_checkCameraTimer = nullptr;
+    }
+
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         delete m_cameras[i]->worker;
         delete m_cameras[i]->thread;
@@ -323,7 +333,7 @@ void Camera::stopAll() {
     qDebug() << "Все потоки остановлены.";
 }
 
-void Camera::startRecording(const QString& cameraName, int recordInterval, int storedVideoFilesLimit) {
+void Camera::startRecording(const QString& cameraName, int recordInterval,  int storedVideoFilesLimit) {
     qDebug() << "Попытка запуска записи для камеры" << cameraName;
     bool cameraFound = false;
     for (size_t i = 0; i < m_cameras.size(); ++i) {
@@ -598,8 +608,19 @@ int Camera::checkCameras() {
         QString errorMsg = QString("Устройства не найдены или не удалось выполнить перечисление. Ошибка: %1").arg(nRet);
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
-        std::exit(EXIT_FAILURE);
+
+        // Запуск таймера для повторной проверки через 30 секунд
+        if (!m_checkCameraTimer->isActive()) {
+            qDebug() << "Запуск таймера для повторной проверки камер через 30 секунд";
+            m_checkCameraTimer->start(30000); // 30 секунд
+        }
         return nRet;
+    }
+
+    // Остановка таймера, если он был запущен
+    if (m_checkCameraTimer->isActive()) {
+        qDebug() << "Камеры найдены, остановка таймера проверки";
+        m_checkCameraTimer->stop();
     }
 
     qDebug() << "Найдено" << m_deviceList.nDeviceNum << "устройств";
@@ -634,11 +655,21 @@ int Camera::checkCameras() {
         QString errorMsg = QString("Не найдено ни одной камеры из списка: %1").arg(m_cameraNames.join(", "));
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
+
+        // Запуск таймера для повторной проверки через 30 секунд
+        if (!m_checkCameraTimer->isActive()) {
+            qDebug() << "Запуск таймера для повторной проверки камер через 30 секунд";
+            m_checkCameraTimer->start(30000); // 30 секунд
+        }
         return -1;
     }
 
-    qDebug() << "Инициализированы камеры:" << m_cameras.size();
+    // Камеры найдены, вызов reconnectCameras()
+    qDebug() << "Камеры найдены, вызов reconnectCameras()";
+    reconnectCameras();
 
+    QString sMsg = QString("Инициализированы камеры: %1").arg(m_cameras.size());
+    emit greatSuccess("Camera", sMsg);
 
     return MV_OK;
 }
@@ -787,6 +818,12 @@ void Camera::cleanupAllCameras() {
         videoInfo->handle = nullptr;
     }
     m_usedIPs.clear();
+
+    if (m_checkCameraTimer->isActive()) {
+        qDebug() << "Остановка таймера проверки камер во время очистки";
+        m_checkCameraTimer->stop();
+    }
+
     QThread::msleep(5000);
     qDebug() << "Все ресурсы камер очищены.";
 }
@@ -798,7 +835,6 @@ void Camera::reconnectCameras() {
     reinitializeCameras();
     start();
     m_reconnectAttempts = 0;
-    // После переподключения нужно дать сигнал и в main запустить запись и стрим заново
     QThread::msleep(5000);
     emit reconnectDone(this);
     qDebug() << "Переподключение камер завершено.";

@@ -24,13 +24,19 @@ MainWindow::MainWindow(QWidget *parent)
     m_cameraLayout = new QHBoxLayout();
     ui->videoWidget->setLayout(m_cameraLayout);
     ui->videoWidget->setMinimumSize(800, 600);
-    ui->videoWidget->setStyleSheet("background-color: lightblue;");
+    ui->videoWidget->setStyleSheet("background-color: transparent;");
 
-    // Инициализация labelWinId для обеих камер
+    // Добавление QLabel для отображения
+    m_label = new QLabel();
+    m_label->setScaledContents(true);       // Масштабирование изображения
+    m_label->setAlignment(Qt::AlignCenter); // Выравнивание по центру
+    m_cameraLayout->addWidget(m_label);
+
+    // Инициализация labelWinId для обеих камер (не трогаем)
     const QList<CameraFrameInfo*>& cameras = m_camera->getCameras();
     for (CameraFrameInfo* cam : cameras) {
         if (cam->name == "LCamera") {
-            cam->labelWinId = ui->videoWidget->winId(); // Для LCamera — вывод в videoWidget
+            cam->labelWinId = 2; // ui->videoWidget->winId(); // Для LCamera
         } else {
             cam->labelWinId = 1; // Для RCamera — не отображаем
         }
@@ -38,6 +44,7 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     // Подключение сигналов
+    connect(m_camera, &Camera::greatSuccess, this, &MainWindow::handleCameraSuccess);
     connect(m_camera, &Camera::frameReady, this, &MainWindow::processFrame);
     connect(m_camera, &Camera::errorOccurred, this, &MainWindow::handleCameraError);
     connect(m_camera, &Camera::reconnectDone, this, &MainWindow::afterReconnect);
@@ -48,8 +55,8 @@ MainWindow::MainWindow(QWidget *parent)
     qDebug() << "Камера запущена.";
 
     QTimer::singleShot(5000, this, [this]() { // Задержка для записи
-        m_camera->startRecording("LCamera", 120, 100);
-        m_camera->startRecording("RCamera", 120, 100);
+        m_camera->startRecording("LCamera", 120, 0);
+        m_camera->startRecording("RCamera", 120, 0);
     });
 
     QTimer::singleShot(5000, this, [this]() { // Задержка для стрима
@@ -65,7 +72,6 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->startRecordButton, &QPushButton::pressed, this, &MainWindow::startRecord);
     connect(ui->hideShowButton, &QPushButton::pressed, this, &MainWindow::showHideLeftPanel);
     connect(ui->masterButton, &QPushButton::pressed, this, &MainWindow::masterSwitch);
-    ui->videoWidget->setStyleSheet("background-color: lightblue");
 
     ui->powerGroupBox->setStyleSheet("QGroupBox {""border: 0px; ""}");
 
@@ -95,6 +101,16 @@ MainWindow::~MainWindow()
 }
 
 void MainWindow::processFrame(CameraFrameInfo* camera)
+{
+    QMutexLocker lock(camera->mutex);
+
+    //camera->frame.hWnd = reinterpret_cast<void*>(camera->labelWinId);
+
+    if (camera->name == "LCamera") {
+        m_label->setPixmap(QPixmap::fromImage(camera->img));
+    }
+
+}
 void MainWindow::showHideLeftPanel()
 {
     isPanelHidden = !isPanelHidden;
@@ -138,22 +154,20 @@ void MainWindow::showHideLeftPanel()
     }
 }
 
-void MainWindow::resizeEvent(QResizeEvent *event)
-{
-    QMutexLocker lock(camera->mutex);
-
-    camera->frame.hWnd = reinterpret_cast<void*>(camera->labelWinId);
-}
-
 void MainWindow::handleCameraError(const QString& component, const QString& message)
 {
-    //QMessageBox::critical(this, "Camera Error", QString("Ошибка в %1: %2").arg(component).arg(message));
+
+}
+
+void MainWindow::handleCameraSuccess(const QString& component, const QString& message)
+{
+
 }
 
 void MainWindow::afterReconnect(Camera* camera)
 {
-    m_camera->startRecording("LCamera", 120, 100);
-    m_camera->startRecording("RCamera", 120, 100);
+    m_camera->startRecording("LCamera", 120, 0);
+    m_camera->startRecording("RCamera", 120, 0);
     m_camera->startStreaming("LCamera", 8080);
     m_camera->startStreaming("RCamera", 8081);
     qDebug() << "Переподключение выполнено";
@@ -171,6 +185,8 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
 void MainWindow::on_takeStereoframeButton_clicked()
 {
     m_camera->stereoShot();
+}
+
 void MainWindow::masterSwitch()
 {
     masterState = !masterState;
@@ -217,5 +233,22 @@ void setRecordButtonState(QPushButton *button, const bool isRecording, const boo
             button->setText("Записать видео");
         QIcon icon(":/Resources/Icons/circle_black.ico");
         button->setIcon(icon);
+    }
+}
+
+void MainWindow::controlsButtonPressed() {
+    // Логика для кнопки управления
+    controlsWindow->show();
+}
+
+void MainWindow::settingsButtonPressed() {
+    // Логика для кнопки настроек
+    settingsDialog->show();
+}
+
+void MainWindow::onResize() {
+    // Логика обработки изменения размера окна
+    if (m_cameraLayout) {
+        m_cameraLayout->update();
     }
 }

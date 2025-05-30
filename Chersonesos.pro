@@ -12,7 +12,6 @@ SOURCES += \
     controlwindow.cpp \
     iplineedit.cpp \
     lineeditutils.cpp \
-    main.cpp \
     customlineedit.cpp \
     gamepadworker.cpp \
     mainwindow.cpp \
