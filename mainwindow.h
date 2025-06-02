@@ -50,7 +50,7 @@ private:
     void masterSwitch();
     void onResize();
     void startRecord();
-
+    bool isStereoRecording;
     void showHideLeftPanel();
     bool isPanelHidden;
     bool isRecording;

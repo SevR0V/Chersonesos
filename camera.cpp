@@ -666,8 +666,13 @@ int Camera::checkCameras() {
 
     // Камеры найдены, вызов reconnectCameras()
     qDebug() << "Камеры найдены, вызов reconnectCameras()";
-    reconnectCameras();
-    //reinitializeCameras();
+    //reconnectCameras();
+
+    cleanupAllCameras();
+    reinitializeCameras();
+    start();
+    QThread::msleep(5000);
+    emit reconnectDone(this);
 
     QString sMsg = QString("Инициализированы камеры: %1").arg(m_cameras.size());
     emit greatSuccess("Camera", sMsg);
