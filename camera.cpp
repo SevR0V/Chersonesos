@@ -1,9 +1,9 @@
 #include "camera.h"
 
-Camera::Camera(QObject* parent) : QObject(parent), m_reconnectAttempts(0), m_maxReconnectAttempts(5) {
+Camera::Camera(QStringList& names, QObject* parent) : QObject(parent), m_cameraNames(names), m_reconnectAttempts(0), m_maxReconnectAttempts(5) {
     qDebug() << "Создание объекта Camera";
     memset(&m_deviceList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
-    m_cameraNames = {"LCamera", "RCamera"};
+    //m_cameraNames = {"LCamera", "RCamera"};
 
     m_checkCameraTimer = new QTimer(this);
     connect(m_checkCameraTimer, &QTimer::timeout, this, &Camera::checkCameras);
@@ -609,10 +609,10 @@ int Camera::checkCameras() {
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
 
-        // Запуск таймера для повторной проверки через 30 секунд
+        // Запуск таймера для повторной проверки через 10 секунд
         if (!m_checkCameraTimer->isActive()) {
-            qDebug() << "Запуск таймера для повторной проверки камер через 30 секунд";
-            m_checkCameraTimer->start(30000); // 30 секунд
+            qDebug() << "Запуск таймера для повторной проверки камер через 10 секунд";
+            m_checkCameraTimer->start(10000);
         }
         return nRet;
     }
@@ -656,10 +656,10 @@ int Camera::checkCameras() {
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
 
-        // Запуск таймера для повторной проверки через 30 секунд
+        // Запуск таймера для повторной проверки через 10 секунд
         if (!m_checkCameraTimer->isActive()) {
-            qDebug() << "Запуск таймера для повторной проверки камер через 30 секунд";
-            m_checkCameraTimer->start(30000); // 30 секунд
+            qDebug() << "Запуск таймера для повторной проверки камер через 10 секунд";
+            m_checkCameraTimer->start(10000);
         }
         return -1;
     }
@@ -667,6 +667,7 @@ int Camera::checkCameras() {
     // Камеры найдены, вызов reconnectCameras()
     qDebug() << "Камеры найдены, вызов reconnectCameras()";
     reconnectCameras();
+    //reinitializeCameras();
 
     QString sMsg = QString("Инициализированы камеры: %1").arg(m_cameras.size());
     emit greatSuccess("Camera", sMsg);

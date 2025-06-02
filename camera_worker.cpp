@@ -95,7 +95,7 @@ void CameraWorker::capture() {
                 if (retryCount > 0) {
                     qDebug() << "Не удалось получить данные для камеры" << m_frameInfo->name
                              << ", Осталось попыток:" << retryCount;
-                    QThread::msleep(40);
+                    QThread::msleep(100);
                     continue;
                 }
             }

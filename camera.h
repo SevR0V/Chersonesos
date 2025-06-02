@@ -22,7 +22,7 @@
 class Camera : public QObject {
     Q_OBJECT
 public:
-    explicit Camera(QObject* parent = nullptr);
+    explicit Camera(QStringList& names, QObject* parent = nullptr);
     ~Camera();
 
     void start();

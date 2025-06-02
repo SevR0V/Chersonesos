@@ -15,10 +15,11 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    QStringList names = {"LCamera", "RCamera"};
     // Инициализация камеры
-    m_camera = new Camera(this);
-    m_camera->setCameraNames({"LCamera", "RCamera"});
-    m_camera->initializeCameras();
+    m_camera = new Camera(names, this);
+    //m_camera->setCameraNames({"LCamera", "RCamera"});
+    //m_camera->initializeCameras();
 
     // Макет для камеры внутри videoWidget
     m_cameraLayout = new QHBoxLayout();
@@ -54,10 +55,6 @@ MainWindow::MainWindow(QWidget *parent)
     m_camera->start();
     qDebug() << "Камера запущена.";
 
-    QTimer::singleShot(5000, this, [this]() { // Задержка для записи
-        m_camera->startRecording("LCamera", 120, 0);
-        m_camera->startRecording("RCamera", 120, 0);
-    });
 
     QTimer::singleShot(5000, this, [this]() { // Задержка для стрима
         m_camera->startStreaming("LCamera", 8080);
@@ -218,6 +215,23 @@ void MainWindow::startRecord()
     setRecordButtonState(ui->startRecordButton,isRecording, isPanelHidden);
 
     bool isStereoRecording = ui->recordStereoCheckBox->isChecked();
+
+    if(!isStereoRecording && isRecording){
+        m_camera->startRecording("LCamera", 120, 0);
+    }
+    if(isStereoRecording && isRecording){
+        m_camera->startRecording("LCamera", 120, 0);
+        m_camera->startRecording("RCamera", 120, 0);
+    }
+    if(!isStereoRecording && !isRecording){
+        m_camera->stopRecording("LCamera");
+    }
+    if(isStereoRecording && !isRecording){
+        m_camera->stopRecording("LCamera");
+        m_camera->stopRecording("RCamera");
+    }
+
+
 }
 
 void setRecordButtonState(QPushButton *button, const bool isRecording, const bool isPanelHidden)
