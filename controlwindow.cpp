@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QTimer>
 #include <QJsonArray>
+#include "lineeditutils.h"
 
 
 ControlWindow::ControlWindow(QWidget *parent)
@@ -73,108 +74,20 @@ ControlWindow::~ControlWindow()
 }
 
 // Функции GUI
-QLayout* findParentLayout(QWidget* widget, QLayout* layout) {
-    if (!layout) {
-        return nullptr;
-    }
-
-    for (int i = 0; i < layout->count(); ++i) {
-        QLayoutItem* item = layout->itemAt(i);
-        if (!item) {
-            continue;
-        }
-
-        if (item->widget() == widget) {
-            return layout;
-        }
-
-        if (QLayout* subLayout = item->layout()) {
-            QLayout* found = findParentLayout(widget, subLayout);
-            if (found) {
-                return found;
-            }
-        }
-
-        if (QWidget* subWidget = item->widget()) {
-            if (QLayout* subWidgetLayout = subWidget->layout()) {
-                QLayout* found = findParentLayout(widget, subWidgetLayout);
-                if (found) {
-                    return found;
-                }
-            }
-        }
-    }
-
-    return nullptr;
-}
-
-QLayout* findContainingLayout(QWidget* widget) {
-    QWidget* parent = widget->parentWidget();
-    if (!parent) {
-        return nullptr;
-    }
-
-    QLayout* layout = parent->layout();
-    if (!layout) {
-        return nullptr;
-    }
-
-    return findParentLayout(widget, layout);
-}
-
 void ControlWindow::replaceLineEdits(QWidget *widget) {
-    QList<QLineEdit*> lineEdits = widget->findChildren<QLineEdit*>();
+    QList<QLineEdit*> edits = widget->findChildren<QLineEdit*>();
 
-    for (QLineEdit *lineEdit : std::as_const(lineEdits)) {
-        QLayout *layout = findContainingLayout(lineEdit);
-
-        if (layout) {
-            int index = -1;
-            for (int i = 0; i < layout->count(); ++i) {
-                QLayoutItem* item = layout->itemAt(i);
-                if (item && item->widget() == lineEdit) {
-                    index = i;
-                    break;
-                }
-            }
-
-            if (index == -1) {
-                continue;
-            }
-
-            CustomLineEdit *customLineEdit = new CustomLineEdit();
-            customLineEdit->setText(lineEdit->text());
-            customLineEdit->setPlaceholderText(lineEdit->placeholderText());
-            customLineEdit->setAlignment(lineEdit->alignment());
-            customLineEdit->setReadOnly(lineEdit->isReadOnly());
-            customLineEdit->setGeometry(lineEdit->geometry());
-            customLineEdit->setObjectName(lineEdit->objectName());
-            customLineEdit->setStyleSheet(lineEdit->styleSheet());
-            customLineEdit->setFont(lineEdit->font());
-            customLineEdit->setEchoMode(lineEdit->echoMode());
-            customLineEdit->setInputMask(lineEdit->inputMask());
-            customLineEdit->setValidator(lineEdit->validator());
-            customLineEdit->setMaxLength(lineEdit->maxLength());
-            customLineEdit->setClearButtonEnabled(lineEdit->isClearButtonEnabled());
-            customLineEdit->setCursorPosition(lineEdit->cursorPosition());
-            customLineEdit->setContextMenuPolicy(lineEdit->contextMenuPolicy());
-
-            connect(customLineEdit, &CustomLineEdit::leftClicked, this, [this, customLineEdit]() {
-                onLineEditLeftClicked(customLineEdit->objectName());
+    for (QLineEdit* lineEdit : edits) {
+        CustomLineEdit* custom = new CustomLineEdit();
+        if (replaceWidgetInLayout(lineEdit, custom)) {
+            connect(custom, &CustomLineEdit::leftClicked, this, [this, custom]() {
+                onLineEditLeftClicked(custom->objectName());
             });
-            connect(customLineEdit, &CustomLineEdit::rightClicked, this, [this, customLineEdit]() {
-                onLineEditRightClicked(customLineEdit->objectName());
+            connect(custom, &CustomLineEdit::rightClicked, this, [this, custom]() {
+                onLineEditRightClicked(custom->objectName());
             });
-
-            if (QBoxLayout* boxLayout = qobject_cast<QBoxLayout*>(layout)) {
-                layout->removeWidget(lineEdit);
-                boxLayout->insertWidget(index, customLineEdit);
-            } else {
-                delete customLineEdit;
-                continue;
-            }
-
-            delete lineEdit;
+        } else {
+            delete custom;
         }
     }
 }
