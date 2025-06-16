@@ -266,5 +266,5 @@ void MainWindow::onResize() {
 }
 
 void MainWindow::onJoystickUpdate(const DualJoystickState &state){
-
+    //qDebug() << state;
 }
