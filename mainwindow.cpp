@@ -16,10 +16,33 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
 
     controlsWindow = new ControlWindow;
+    settingsDialog = new SettingsDialog;
+
     // *controlsWindow->profileManager = *MainWindow::profileManager;
     connect(ui->controlsButton, &QPushButton::pressed, [this]() {controlsWindow->show();});
+    connect(ui->settingsButton, &QPushButton::pressed, [this]() {settingsDialog->show();});
     connect(ui->startRecordButton, &QPushButton::pressed, this, &MainWindow::startRecord);
+    connect(ui->hideShowButton, &QPushButton::pressed, this, &MainWindow::showHideLeftPanel);
+    connect(ui->masterButton, &QPushButton::pressed, this, &MainWindow::masterSwitch);
     ui->videoWidget->setStyleSheet("background-color: lightblue");
+
+    ui->powerGroupBox->setStyleSheet("QGroupBox {""border: 0px; ""}");
+
+    QIcon locked(":/Resources/Icons/lock_closed.ico");
+    // unlocked.addFile(":/Resources/Icons/lock_open.ico");
+    ui->masterButton->setIcon(locked);
+    ui->masterButton->setIconSize(QSize(28, 28));
+
+    QIcon leftArrow(":/Resources/Icons/left_arrow.ico");
+    ui->hideShowButton->setIcon(leftArrow);
+    ui->hideShowButton->setIconSize(QSize(28, 28));
+
+    QIcon icon(":/Resources/Icons/circle_black.ico");
+    ui->startRecordButton->setIcon(icon);
+    ui->hideShowButton->setIconSize(QSize(14, 14));
+
+    isPanelHidden = false;
+
     isRecording = false;
     // Инициализация камеры
     m_camera = new Camera(this);
@@ -97,8 +120,12 @@ MainWindow::~MainWindow()
 }
 
 void MainWindow::processFrame(CameraFrameInfo* camera)
+void MainWindow::showHideLeftPanel()
 {
-    QMutexLocker lock(camera->mutex);
+    isPanelHidden = !isPanelHidden;
+    if(isPanelHidden){
+        QIcon rightArrow(":/Resources/Icons/right_arrow.ico");
+        ui->hideShowButton->setIcon(rightArrow);
 
     if (camera->name == "LCamera") {
         m_label->setPixmap(QPixmap::fromImage(camera->img));
@@ -148,16 +175,36 @@ void MainWindow::showHideLeftPanel()
     }
 }
 
+void MainWindow::masterSwitch()
+{
+    masterState = !masterState;
+    setMasterButtonState(ui->masterButton, masterState, isPanelHidden);
+}
+
+void setMasterButtonState(QPushButton *button, const bool masterState, const bool isPanelHidden)
+{
+    if(masterState)
+    {
+        if(! isPanelHidden)
+            button->setText("Заблокировать ТНПА");
+        QIcon unlocked(":/Resources/Icons/lock_open.ico");
+        button->setIcon(unlocked);
+
+    } else {
+        if(! isPanelHidden)
+            button->setText("Разблокировать ТНПА");
+        QIcon locked(":/Resources/Icons/lock_closed.ico");
+        button->setIcon(locked);
+    }
+}
+
 void MainWindow::startRecord()
 {
     ui->recordStereoCheckBox->setDisabled(!isRecording);
-    if(isRecording)
-    {
-        ui->startRecordButton->setText("Записать видео");
-    } else {
-        ui->startRecordButton->setText("Остановить запись");
-    }
     isRecording = !isRecording;
+
+    setRecordButtonState(ui->startRecordButton,isRecording, isPanelHidden);
+
     bool isStereoRecording = ui->recordStereoCheckBox->isChecked();
 void MainWindow::handleCameraError(const QString& component, const QString& message)
 {
@@ -253,14 +300,6 @@ void setRecordButtonState(QPushButton *button, const bool isRecording, const boo
         QIcon icon(":/Resources/Icons/circle_black.ico");
         button->setIcon(icon);
     }
-}
-
-void MainWindow::controlsButtonPressed() {
-    controlsWindow->show();
-}
-
-void MainWindow::settingsButtonPressed() {
-    settingsDialog->show();
 }
 
 void MainWindow::onResize() {
