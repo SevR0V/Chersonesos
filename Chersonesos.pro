@@ -1,4 +1,4 @@
-QT       += core gui
+QT += core gui openglwidgets network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -12,11 +12,18 @@ SOURCES += \
     controlwindow.cpp \
     iplineedit.cpp \
     lineeditutils.cpp \
-    main.cpp \
     customlineedit.cpp \
     gamepadworker.cpp \
     mainwindow.cpp \
     profilemanager.cpp \
+    camera.cpp \
+    camera_worker.cpp \
+    frame_processor.cpp \
+    logger.cpp \
+    main.cpp \
+    settingsdialog.cpp \
+    video_recorder.cpp \
+    video_streamer.cpp
     settingsdialog.cpp
 
 HEADERS += \
@@ -27,6 +34,14 @@ HEADERS += \
     lineeditutils.h \
     mainwindow.h \
     profilemanager.h \
+    camera.h \
+    camera_structs.h \
+    camera_worker.h \
+    frame_processor.h \
+    logger.h \
+    settingsdialog.h \
+    video_recorder.h \
+    video_streamer.h
     settingsdialog.h
 
 FORMS += \
@@ -38,6 +53,15 @@ FORMS += \
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+INCLUDEPATH += c:\opencv-4.10.0-build\install\include
+LIBS += -lwsock32
+LIBS += -lws2_32
+LIBS += -LC:\opencv-4.10.0-build\install\x64\vc17\lib
+LIBS += -lopencv_core4100 -lopencv_imgcodecs4100 -lopencv_highgui4100 -lopencv_features2d4100 -lopencv_calib3d4100 -lopencv_videoio4100 -lopencv_imgproc4100 -lopencv_ximgproc4100
+
+LIBS += -LC:\MVS\Development\Libraries\win64 -lMvCameraControl
+INCLUDEPATH += c:\MVS\Development\Includes
 
 unix|win32: LIBS += -L$$PWD/SDL3/lib/x64/ -lSDL3
 
