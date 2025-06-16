@@ -12,6 +12,10 @@
 #include <QKeyEvent>
 #include "ui_mainwindow.h"
 #include "camera.h"
+#include "controlwindow.h"
+#include "profilemanager.h"
+#include "controlwindow.h"
+#include "settingsdialog.h"
 
 namespace Ui {
 class MainWindow;
@@ -26,8 +30,8 @@ public:
 private slots:
     void processFrame(CameraFrameInfo* camera);
     void handleCameraError(const QString& component, const QString& message);
+    void handleCameraSuccess(const QString& component, const QString& message);
     void afterReconnect(Camera* camera);
-
     void on_takeStereoframeButton_clicked();
 
 protected:
@@ -35,14 +39,25 @@ protected:
 
 private:
     Ui::MainWindow *ui;
+    Camera* m_camera;
+    QMap<QString, QOpenGLWidget*> m_displayWidgets;
+    QHBoxLayout* m_cameraLayout;
     ControlWindow *controlsWindow;
+    SettingsDialog *settingsDialog;
+    QLabel* m_label;
     void controlsButtonPressed();
+    void settingsButtonPressed();
+    void masterSwitch();
     void onResize();
     void startRecord();
+    bool isStereoRecording;
+    void showHideLeftPanel();
+    bool isPanelHidden;
     bool isRecording;
     Camera* m_camera;
     QMap<QString, QOpenGLWidget*> m_displayWidgets;
     QHBoxLayout* m_cameraLayout;
+    bool masterState;
 };
 
 #endif // MAINWINDOW_H

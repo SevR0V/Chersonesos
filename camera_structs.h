@@ -23,6 +23,7 @@ struct CameraFrameInfo {
     CameraWorker* worker = nullptr;   // Рабочий объект для захвата
     QThread* thread = nullptr;        // Поток для захвата
     WId labelWinId = 0;               // Дескриптор окна для отображения
+    QImage img;
 
     CameraFrameInfo() {
         mutex = new QMutex();

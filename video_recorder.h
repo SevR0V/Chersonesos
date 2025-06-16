@@ -34,6 +34,7 @@ signals:
     void errorOccurred(const QString& component, const QString& message);
 
 private:
+    void manageStoredFiles();
     std::string sanitizeFileName(const std::string& input);
     std::string generateFileName(const std::string& prefix, const std::string& extension);
     std::string generateSessionDirectoryName();

@@ -1,0 +1,10 @@
+<RCC>
+    <qresource prefix="/">
+        <file>Resources/Icons/lock_closed.ico</file>
+        <file>Resources/Icons/lock_open.ico</file>
+        <file>Resources/Icons/left_arrow.ico</file>
+        <file>Resources/Icons/right_arrow.ico</file>
+        <file>Resources/Icons/circle_black.ico</file>
+        <file>Resources/Icons/circle_red.ico</file>
+    </qresource>
+</RCC>

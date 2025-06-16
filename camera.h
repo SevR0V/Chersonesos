@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QList>
 #include <QStringList>
+#include <QTimer>
 #include <set>
 #include <filesystem>
 #include <sstream>
@@ -21,12 +22,12 @@
 class Camera : public QObject {
     Q_OBJECT
 public:
-    explicit Camera(QObject* parent = nullptr);
+    explicit Camera(QStringList& names, QObject* parent = nullptr);
     ~Camera();
 
     void start();
     void stopAll();
-    void startRecording(const QString& cameraName, int recordInterval = 1, int storedVideoFilesLimit = 10);
+    void startRecording(const QString& cameraName, int recordInterval = 30, int storedVideoFilesLimit = 100);
     void stopRecording(const QString& cameraName);
     void startStreaming(const QString& cameraName, int port);
     void stopStreaming(const QString& cameraName);
@@ -60,6 +61,7 @@ signals:
     void finished();
     void reconnectDone(Camera* camera);
     void errorOccurred(const QString& component, const QString& message);
+    void greatSuccess(const QString& component, const QString& message);
 
 private:
     MV_CC_DEVICE_INFO_LIST m_deviceList;
@@ -69,6 +71,7 @@ private:
     std::set<unsigned int> m_usedIPs;
     int m_reconnectAttempts;
     const int m_maxReconnectAttempts;
+    QTimer* m_checkCameraTimer;
 };
 
 #endif // CAMERA_H
