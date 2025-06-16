@@ -16,6 +16,8 @@
 #include "profilemanager.h"
 #include "controlwindow.h"
 #include "settingsdialog.h"
+#include "udphandler.h"
+#include "gamepadworker.h"
 
 namespace Ui {
 class MainWindow;
@@ -33,6 +35,8 @@ private slots:
     void handleCameraSuccess(const QString& component, const QString& message);
     void afterReconnect(Camera* camera);
     void on_takeStereoframeButton_clicked();
+    void onDatagramReceived(const QByteArray &data, const QHostAddress &sender, quint16 port);
+    void onJoystickUpdate(const DualJoystickState &state);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -45,8 +49,6 @@ private:
     ControlWindow *controlsWindow;
     SettingsDialog *settingsDialog;
     QLabel* m_label;
-    void controlsButtonPressed();
-    void settingsButtonPressed();
     void masterSwitch();
     void onResize();
     void startRecord();
@@ -55,6 +57,11 @@ private:
     bool isPanelHidden;
     bool isRecording;
     bool masterState;
+    QThread *udpThread;
+    UdpHandler *udpHandler;
+
+    QThread *workerThread;
+    GamepadWorker *worker;
 };
 
 #endif // MAINWINDOW_H

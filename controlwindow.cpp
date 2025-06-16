@@ -5,11 +5,14 @@
 #include <QTimer>
 #include <QJsonArray>
 #include "lineeditutils.h"
+#include "gamepadworker.h"
 
 
-ControlWindow::ControlWindow(QWidget *parent)
+
+ControlWindow::ControlWindow(GamepadWorker *worker, QWidget *parent)
     : QWidget(parent)
-    , ui(new Ui::ControlWindow)
+    , ui(new Ui::ControlWindow),
+    _worker(worker)
 {
     ui->setupUi(this);
 
@@ -40,36 +43,25 @@ ControlWindow::ControlWindow(QWidget *parent)
     connect(updateTimer, &QTimer::timeout, this, &ControlWindow::checkForDeviceChanges);
     updateTimer->start(1000);
 
-    workerThread = new QThread(this);
-    worker = new GamepadWorker();
-    worker->moveToThread(workerThread);
 
-    connect(workerThread, &QThread::started, worker, &GamepadWorker::pollDevices);
-    connect(worker, &GamepadWorker::primaryButtonPressed, this, &ControlWindow::onPrimaryButtonPressed);
-    connect(worker, &GamepadWorker::primaryAxisMoved, this, &ControlWindow::onPrimaryAxisMoved);
-    connect(worker, &GamepadWorker::secondaryButtonPressed, this, &ControlWindow::onSecondaryButtonPressed);
-    connect(worker, &GamepadWorker::secondaryAxisMoved, this, &ControlWindow::onSecondaryAxisMoved);
-    connect(worker, &GamepadWorker::primaryHatPressed, this, &ControlWindow::onPrimaryHatPressed);
-    connect(worker, &GamepadWorker::secondaryHatPressed, this, &ControlWindow::onSecondaryHatPressed);
-    connect(worker, &GamepadWorker::deviceListUpdated, this, &ControlWindow::updateDeviceList);
-    connect(this, &ControlWindow::destroyed, worker, &GamepadWorker::stop);
-    connect(workerThread, &QThread::finished, worker, &GamepadWorker::deleteLater);
-
-    workerThread->start();
+    connect(_worker, &GamepadWorker::primaryButtonPressed, this, &ControlWindow::onPrimaryButtonPressed);
+    connect(_worker, &GamepadWorker::primaryAxisMoved, this, &ControlWindow::onPrimaryAxisMoved);
+    connect(_worker, &GamepadWorker::secondaryButtonPressed, this, &ControlWindow::onSecondaryButtonPressed);
+    connect(_worker, &GamepadWorker::secondaryAxisMoved, this, &ControlWindow::onSecondaryAxisMoved);
+    connect(_worker, &GamepadWorker::primaryHatPressed, this, &ControlWindow::onPrimaryHatPressed);
+    connect(_worker, &GamepadWorker::secondaryHatPressed, this, &ControlWindow::onSecondaryHatPressed);
+    connect(_worker, &GamepadWorker::deviceListUpdated, this, &ControlWindow::updateDeviceList);
     checkForDeviceChanges();
 
     //Тут подключаем джойстик после загрузки из конфига
-    worker->setPrimaryDevice(currentPrimaryDeviceName);
+    _worker->setPrimaryDevice(currentPrimaryDeviceName);
     ui->primaryDeviceList->setCurrentIndex(ui->primaryDeviceList->findText(currentPrimaryDeviceName));
-    worker->setSecondaryDevice(currentSecondaryDeviceName);
+    _worker->setSecondaryDevice(currentSecondaryDeviceName);
     ui->secondaryDeviceList->setCurrentIndex(ui->secondaryDeviceList->findText(currentSecondaryDeviceName));
 }
 
 ControlWindow::~ControlWindow()
 {
-    workerThread->quit();
-    workerThread->wait();
-    delete workerThread;
     delete ui;
 }
 
@@ -167,14 +159,14 @@ void ControlWindow::updateDeviceList(const QStringList &deviceNames)
         ui->secondaryDeviceList->setCurrentIndex(0);
     }
 
-    worker->resetDeviceListChanged();
+    _worker->resetDeviceListChanged();
 }
 
 void ControlWindow::onPrimaryDeviceChanged(int index)
 {
     QString deviceName = ui->primaryDeviceList->itemText(index);
     qDebug() << "Primary device changed to:" << deviceName;
-    worker->setPrimaryDevice(deviceName);
+    _worker->setPrimaryDevice(deviceName);
     currentPrimaryDeviceName = deviceName;
 }
 
@@ -182,15 +174,15 @@ void ControlWindow::onSecondaryDeviceChanged(int index)
 {
     QString deviceName = ui->secondaryDeviceList->itemText(index);
     qDebug() << "Secondary device changed to:" << deviceName;
-    worker->setSecondaryDevice(deviceName);
+    _worker->setSecondaryDevice(deviceName);
     currentSecondaryDeviceName = deviceName;
 }
 
 void ControlWindow::checkForDeviceChanges()
 {
-    if (worker->hasDeviceListChanged()) {
+    if (_worker->hasDeviceListChanged()) {
         qDebug() << "Device list changed, requesting update";
-        worker->updateDeviceList();
+        _worker->updateDeviceList();
     }
 }
 
@@ -249,18 +241,18 @@ void ControlWindow::updateProfileOnGUI()
         ui->primaryDeviceList->addItem("[offline]" + currentPrimaryDeviceName);
         ui->primaryDeviceList->setCurrentIndex(ui->primaryDeviceList->findText("[offline]" + currentPrimaryDeviceName));
         currentPrimaryDeviceName = "No Device";
-        worker->setPrimaryDevice("No Device");
+        _worker->setPrimaryDevice("No Device");
     } else {
         ui->primaryDeviceList->setCurrentIndex(ui->primaryDeviceList->findText(currentPrimaryDeviceName));
-        worker->setSecondaryDevice(currentPrimaryDeviceName);
+        _worker->setSecondaryDevice(currentPrimaryDeviceName);
     }
     if (ui->secondaryDeviceList->findText(currentSecondaryDeviceName) == -1){
         ui->secondaryDeviceList->addItem("[offline]" + currentSecondaryDeviceName);
         ui->secondaryDeviceList->setCurrentIndex(ui->secondaryDeviceList->findText("[offline]" + currentSecondaryDeviceName));
         currentSecondaryDeviceName = "No Device";
-        worker->setSecondaryDevice("No Device");
+        _worker->setSecondaryDevice("No Device");
     } else {
-        worker->setSecondaryDevice(currentSecondaryDeviceName);
+        _worker->setSecondaryDevice(currentSecondaryDeviceName);
         ui->secondaryDeviceList->setCurrentIndex(ui->secondaryDeviceList->findText(currentSecondaryDeviceName));
     }
 

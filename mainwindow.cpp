@@ -11,9 +11,26 @@ void setMasterButtonState(QPushButton *button, const bool masterState, const boo
 void setRecordButtonState(QPushButton *button, const bool isRecording, const bool isPanelHidden);
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), ui(new Ui::MainWindow)
+    : QMainWindow(parent), ui(new Ui::MainWindow),
+    udpThread(new QThread(this)),
+    udpHandler(new UdpHandler()),
+    workerThread(new QThread(this)),
+    worker(new GamepadWorker())
 {
     ui->setupUi(this);
+
+    worker->moveToThread(workerThread);
+    workerThread->start();
+    connect(workerThread, &QThread::finished, worker, &QObject::deleteLater);
+    connect(workerThread, &QThread::started, worker, &GamepadWorker::pollDevices);
+    connect(workerThread, &QThread::finished, worker, &GamepadWorker::deleteLater);
+    connect(worker, &GamepadWorker::joysticksUpdated, this, &MainWindow::onJoystickUpdate);
+
+    udpHandler->moveToThread(udpThread);
+    udpThread->start();
+    connect(udpThread, &QThread::finished, udpHandler, &QObject::deleteLater);
+    connect(udpHandler, &UdpHandler::datagramReceived,
+            this, &MainWindow::onDatagramReceived);
 
     QStringList names = {"LCamera", "RCamera"};
     m_camera = new Camera(names, this);
@@ -51,7 +68,7 @@ MainWindow::MainWindow(QWidget *parent)
         m_camera->startStreaming("RCamera", 8081);
     });
 
-    controlsWindow = new ControlWindow;
+    controlsWindow = new ControlWindow(worker);
     settingsDialog = new SettingsDialog;
 
     connect(ui->controlsButton, &QPushButton::pressed, [this]() { controlsWindow->show(); });
@@ -84,6 +101,10 @@ MainWindow::~MainWindow()
 {
     delete m_camera;
     delete ui;
+    workerThread->quit();
+    workerThread->wait();
+    udpThread->quit();
+    udpThread->wait();
 }
 
 void MainWindow::processFrame(CameraFrameInfo* camera)
@@ -234,16 +255,16 @@ void setRecordButtonState(QPushButton *button, const bool isRecording, const boo
     }
 }
 
-void MainWindow::controlsButtonPressed() {
-    controlsWindow->show();
-}
+void MainWindow::onDatagramReceived(const QByteArray &data, const QHostAddress &sender, quint16 port){
 
-void MainWindow::settingsButtonPressed() {
-    settingsDialog->show();
 }
 
 void MainWindow::onResize() {
     if (m_cameraLayout) {
         m_cameraLayout->update();
     }
+}
+
+void MainWindow::onJoystickUpdate(const DualJoystickState &state){
+
 }

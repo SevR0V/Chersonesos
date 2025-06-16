@@ -22,7 +22,7 @@ signals:
     void secondaryAxisMoved(int axis, Sint16 value);
 
 public:
-    explicit ControlWindow(QWidget *parent = nullptr);
+    explicit ControlWindow(GamepadWorker *worker, QWidget *parent = nullptr);
     ~ControlWindow();
     void controlsButtonPressed();
     bool isJoyListenerFinished;
@@ -64,8 +64,7 @@ private:
     QString currentSecondaryDeviceName;
     QString activeInputName;
 
-    QThread *workerThread;
-    GamepadWorker *worker;
+    GamepadWorker *_worker;
     void profileActionDetected(QString inputType, int inputIdx);
 };
 

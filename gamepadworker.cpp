@@ -11,6 +11,9 @@ GamepadWorker::GamepadWorker(QObject *parent) : QObject(parent)
         return;
     }
 
+    qRegisterMetaType<JoystickState>("JoystickState");
+    qRegisterMetaType<DualJoystickState>("DualJoystickState");
+
     currentPrimaryName = NO_DEVICE_NAME;
     currentSecondaryName = NO_DEVICE_NAME;
     updateDeviceList();
@@ -81,6 +84,63 @@ void GamepadWorker::pollDevices() {
     if (numJoysticks != lastNumJoysticks) {
         updateDeviceList();
     }
+
+    JoystickState primaryState, secondaryState;
+
+    if (primaryJoystick) {
+        primaryState.deviceName = currentPrimaryName;
+        int numAxes = SDL_GetNumJoystickAxes(primaryJoystick);
+        int numButtons = SDL_GetNumJoystickButtons(primaryJoystick);
+        int numHats = SDL_GetNumJoystickHats(primaryJoystick);
+
+        primaryState.axes.resize(numAxes);
+        primaryState.buttons.resize(numButtons);
+        primaryState.hats.resize(numHats);
+
+        for (int i = 0; i < numAxes; ++i)
+            primaryState.axes[i] = SDL_GetJoystickAxis(primaryJoystick, i);
+        for (int i = 0; i < numButtons; ++i)
+            primaryState.buttons[i] = SDL_GetJoystickButton(primaryJoystick, i);
+        for (int i = 0; i < numHats; ++i) {
+            Uint8 hat = SDL_GetJoystickHat(primaryJoystick, i);
+            QString hatDir;
+            if (hat & SDL_HAT_UP) hatDir += "Up ";
+            if (hat & SDL_HAT_DOWN) hatDir += "Down ";
+            if (hat & SDL_HAT_LEFT) hatDir += "Left ";
+            if (hat & SDL_HAT_RIGHT) hatDir += "Right ";
+            primaryState.hats[i] = hatDir.trimmed();
+        }
+    }
+
+    if (secondaryJoystick) {
+        secondaryState.deviceName = currentSecondaryName;
+        int numAxes = SDL_GetNumJoystickAxes(secondaryJoystick);
+        int numButtons = SDL_GetNumJoystickButtons(secondaryJoystick);
+        int numHats = SDL_GetNumJoystickHats(secondaryJoystick);
+
+        secondaryState.axes.resize(numAxes);
+        secondaryState.buttons.resize(numButtons);
+        secondaryState.hats.resize(numHats);
+
+        for (int i = 0; i < numAxes; ++i)
+            secondaryState.axes[i] = SDL_GetJoystickAxis(secondaryJoystick, i);
+        for (int i = 0; i < numButtons; ++i)
+            secondaryState.buttons[i] = SDL_GetJoystickButton(secondaryJoystick, i);
+        for (int i = 0; i < numHats; ++i) {
+            Uint8 hat = SDL_GetJoystickHat(secondaryJoystick, i);
+            QString hatDir;
+            if (hat & SDL_HAT_UP) hatDir += "Up ";
+            if (hat & SDL_HAT_DOWN) hatDir += "Down ";
+            if (hat & SDL_HAT_LEFT) hatDir += "Left ";
+            if (hat & SDL_HAT_RIGHT) hatDir += "Right ";
+            secondaryState.hats[i] = hatDir.trimmed();
+        }
+    }
+
+    DualJoystickState combined;
+    combined.primary = primaryState;
+    combined.secondary = secondaryState;
+    emit joysticksUpdated(combined);
 
     if (primaryJoystick) {
         if (primaryAxisValues.empty()) {
@@ -167,6 +227,9 @@ void GamepadWorker::pollDevices() {
     } else {
         secondaryAxisValues.clear();
     }
+
+
+
 }
 
 void GamepadWorker::updateDeviceList()

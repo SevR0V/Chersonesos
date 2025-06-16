@@ -5,6 +5,21 @@
 #include <SDL3/SDL.h>
 #include <QMap>
 
+struct JoystickState {
+    QString deviceName;
+    QVector<Sint16> axes;
+    QVector<bool> buttons;
+    QVector<QString> hats;
+};
+
+struct DualJoystickState {
+    JoystickState primary;
+    JoystickState secondary;
+};
+
+Q_DECLARE_METATYPE(JoystickState)
+Q_DECLARE_METATYPE(DualJoystickState)
+
 class GamepadWorker : public QObject {
     Q_OBJECT
 
@@ -30,6 +45,7 @@ signals:
     void deviceListUpdated(const QStringList &deviceNames);
     void primaryHatPressed(int hat, const QString &direction);
     void secondaryHatPressed(int hat, const QString &direction);
+    void joysticksUpdated(const DualJoystickState &state);
 
 private:
     void deactivateJoystick(SDL_Joystick *&joystick);
