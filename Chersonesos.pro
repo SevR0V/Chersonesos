@@ -9,6 +9,7 @@ CONFIG += c++17
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    SettingsManager.cpp \
     controlwindow.cpp \
     iplineedit.cpp \
     lineeditutils.cpp \
@@ -28,6 +29,7 @@ SOURCES += \
     settingsdialog.cpp
 
 HEADERS += \
+    SettingsManager.h \
     controlwindow.h \
     customlineedit.h \
     gamepadworker.h \

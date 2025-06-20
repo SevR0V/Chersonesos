@@ -92,9 +92,11 @@ bool ProfileManager::save() {
     return true;
 }
 
+
 void ProfileManager::setProfileName(const QString& name) {
     profileObject["profileName"] = name;
 }
+
 
 void ProfileManager::setDevices(const QString& primary, const QString& secondary) {
     QJsonObject devices;

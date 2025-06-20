@@ -331,3 +331,15 @@ void ControlWindow::onSecondaryHatPressed(int hat, QString direction)
     if(! activeInputName.contains("but", Qt::CaseInsensitive)) return;
     ControlWindow::profileActionDetected("hat_" + direction, hat);
 }
+
+void ControlWindow::on_loadProfileBut_clicked()
+{
+
+}
+
+
+void ControlWindow::on_saveProfileBut_clicked()
+{
+
+}
+

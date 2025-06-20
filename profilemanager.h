@@ -26,8 +26,13 @@ public:
     QStringList listAvailableProfiles();
     QJsonObject getProfile() const;
 
+
+  //  bool loadSetting(const QString& filePath,QJsonObject profile);
+  //  bool saveSetting(QJsonObject profile);
 private:
     QJsonObject profileObject;
 };
+
+
 
 #endif // PROFILEMANAGER_H

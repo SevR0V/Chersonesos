@@ -6,6 +6,7 @@
 #include <QTimer>
 #include <winspool.h>
 #include <QResizeEvent>
+#include "SettingsManager.h"
 
 void setMasterButtonState(QPushButton *button, const bool masterState, const bool isPanelHidden);
 void setRecordButtonState(QPushButton *button, const bool isRecording, const bool isPanelHidden);
@@ -94,7 +95,7 @@ MainWindow::MainWindow(QWidget *parent)
     isPanelHidden = false;
     isRecording = false;
     masterState = false;
-    isStereoRecording = ui->recordStereoCheckBox->isChecked();
+    isStereoRecording = ui->recordStereoCheckBox->isChecked(); 
 }
 
 MainWindow::~MainWindow()
