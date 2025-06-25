@@ -143,7 +143,7 @@ void VideoRecorder::startRecording() {
     // Инициализируем параметры видео
     int fourccCode = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
     cv::Size videoResolution;
-    int realFPS = 30;
+    int realFPS = 20;
 
     {
         QMutexLocker locker(m_videoInfo->mutex);
@@ -229,7 +229,7 @@ void VideoRecorder::startRecording() {
                 qDebug() << "Пропущен пустой кадр для камеры" << m_videoInfo->name;
             }
 
-            QThread::usleep(1000);
+            QThread::msleep(30);
         }
 
         videoWriter.release();
