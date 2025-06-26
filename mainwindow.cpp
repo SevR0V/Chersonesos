@@ -173,7 +173,7 @@ void MainWindow::handleCameraSuccess(const QString& component, const QString& me
 void MainWindow::afterReconnect(Camera* camera)
 {
     if (isRecording) {
-        m_camera->startRecording("LCamera", 120, 0);
+        m_camera->startRecording("LCamera", 120, 0); // Имя камеры, интервал записи в секундах, ограничение по количеству файлов
         if (isStereoRecording) {
             m_camera->startRecording("RCamera", 120, 0);
         }
