@@ -18,6 +18,7 @@
 #include "settingsdialog.h"
 #include "udphandler.h"
 #include "gamepadworker.h"
+#include "udptelemetryparser.h"
 
 namespace Ui {
 class MainWindow;
@@ -57,6 +58,11 @@ private:
     bool isPanelHidden;
     bool isRecording;
     bool masterState;
+
+    UdpTelemetryParser *telemetryParser;
+
+    ProfileManager *profileManager;
+
     QThread *udpThread;
     UdpHandler *udpHandler;
 

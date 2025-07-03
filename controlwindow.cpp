@@ -9,9 +9,11 @@
 
 
 
-ControlWindow::ControlWindow(GamepadWorker *worker, QWidget *parent)
+ControlWindow::ControlWindow(GamepadWorker *worker, ProfileManager *profileManager, QWidget *parent)
     : QWidget(parent)
-    , ui(new Ui::ControlWindow),
+    , isJoyListenerFinished(false),
+    ui(new Ui::ControlWindow),
+    profileManager(profileManager),
     _worker(worker)
 {
     ui->setupUi(this);
@@ -28,7 +30,7 @@ ControlWindow::ControlWindow(GamepadWorker *worker, QWidget *parent)
     ui->profileList->addItems(profileManager->listAvailableProfiles());
     connect(ui->loadProfileBut, &QPushButton::clicked, this, &ControlWindow::onLoadProfileBtnClick);
     //джойстик
-    profileManager = new ProfileManager;
+    // profileManager = new ProfileManager;
     currentPrimaryDeviceName = "No Device";
     currentSecondaryDeviceName = "No Device";
 

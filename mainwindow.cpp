@@ -14,7 +14,6 @@ void setRecordButtonState(QPushButton *button, const bool isRecording, const boo
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow),
     udpThread(new QThread(this)),
-    udpHandler(new UdpHandler()),
     workerThread(new QThread(this)),
     worker(new GamepadWorker())
 {
@@ -27,11 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(workerThread, &QThread::finished, worker, &GamepadWorker::deleteLater);
     connect(worker, &GamepadWorker::joysticksUpdated, this, &MainWindow::onJoystickUpdate);
 
-    udpHandler->moveToThread(udpThread);
-    udpThread->start();
-    connect(udpThread, &QThread::finished, udpHandler, &QObject::deleteLater);
-    connect(udpHandler, &UdpHandler::datagramReceived,
-            this, &MainWindow::onDatagramReceived);
+
 
     QStringList names = {"LCamera", "RCamera"};
     m_camera = new Camera(names, this);
@@ -69,7 +64,9 @@ MainWindow::MainWindow(QWidget *parent)
         m_camera->startStreaming("RCamera", 8081);
     });
 
-    controlsWindow = new ControlWindow(worker);
+
+    profileManager = new ProfileManager();
+    controlsWindow = new ControlWindow(worker, profileManager);
     settingsDialog = new SettingsDialog;
 
     connect(ui->controlsButton, &QPushButton::pressed, [this]() { controlsWindow->show(); });
@@ -95,7 +92,16 @@ MainWindow::MainWindow(QWidget *parent)
     isPanelHidden = false;
     isRecording = false;
     masterState = false;
-    isStereoRecording = ui->recordStereoCheckBox->isChecked(); 
+    isStereoRecording = ui->recordStereoCheckBox->isChecked();
+
+    UdpTelemetryParser *telemetryParser = new UdpTelemetryParser();
+
+    UdpHandler *udpHandler = new UdpHandler(profileManager, telemetryParser, worker);
+    udpHandler->moveToThread(udpThread);
+    udpThread->start();
+    connect(udpThread, &QThread::finished, udpHandler, &QObject::deleteLater);
+    connect(udpHandler, &UdpHandler::datagramReceived,
+            this, &MainWindow::onDatagramReceived);
 }
 
 MainWindow::~MainWindow()

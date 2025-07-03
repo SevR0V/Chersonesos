@@ -24,8 +24,9 @@ SOURCES += \
     main.cpp \
     settingsdialog.cpp \
     udphandler.cpp \
+    udptelemetryparser.cpp \
     video_recorder.cpp \
-    video_streamer.cpp
+    video_streamer.cpp \
     settingsdialog.cpp
 
 HEADERS += \
@@ -44,8 +45,9 @@ HEADERS += \
     logger.h \
     settingsdialog.h \
     udphandler.h \
+    udptelemetryparser.h \
     video_recorder.h \
-    video_streamer.h
+    video_streamer.h \
     settingsdialog.h
 
 FORMS += \

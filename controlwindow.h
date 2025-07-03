@@ -22,11 +22,10 @@ signals:
     void secondaryAxisMoved(int axis, Sint16 value);
 
 public:
-    explicit ControlWindow(GamepadWorker *worker, QWidget *parent = nullptr);
+    explicit ControlWindow(GamepadWorker *worker, ProfileManager *profileManager, QWidget *parent = nullptr);
     ~ControlWindow();
     void controlsButtonPressed();
     bool isJoyListenerFinished;
-    ProfileManager *profileManager;
 
 private slots:
     // гуишные штучки
@@ -67,6 +66,8 @@ private:
     QString currentPrimaryDeviceName;
     QString currentSecondaryDeviceName;
     QString activeInputName;
+
+    ProfileManager *profileManager;
 
     GamepadWorker *_worker;
     void profileActionDetected(QString inputType, int inputIdx);
