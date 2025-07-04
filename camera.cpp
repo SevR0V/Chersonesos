@@ -458,37 +458,6 @@ void Camera::stereoShot() {
     }
 
     if (!lCameraInfo || !rCameraInfo) {
-        qDebug() << "Не найдены обе камеры LCamera и RCamera";
-        emit stereoShotFailed("Не найдены камеры");
-        return;
-    }
-
-    cv::Mat lFrame, rFrame;
-    if (lCameraInfo->mutex->tryLock(1000) && rCameraInfo->mutex->tryLock(1000)) {
-        if (!lCameraInfo->frameBuffer.empty()) lFrame = lCameraInfo->frameBuffer[0].clone();
-        if (!rCameraInfo->frameBuffer.empty()) rFrame = rCameraInfo->frameBuffer[0].clone();
-        lCameraInfo->mutex->unlock();
-        rCameraInfo->mutex->unlock();
-    } else {
-        qDebug() << "Не удалось заблокировать мьютексы для доступа к буферам";
-        emit stereoShotFailed("Тайм-аут блокировки мьютексов");
-        return;
-    }
-
-    if (lFrame.empty() || rFrame.empty()) {
-        qDebug() << "Один или оба кадра пусты";
-        emit stereoShotFailed("Кадры пусты");
-        return;
-    }
-    for (size_t i = 0; i < m_cameras.size(); ++i) {
-        if (m_cameras[i]->name == "LCamera") {
-            lCameraInfo = m_videoInfos[i];
-        } else if (m_cameras[i]->name == "RCamera") {
-            rCameraInfo = m_videoInfos[i];
-        }
-    }
-
-    if (!lCameraInfo || !rCameraInfo) {
         QString errorMsg = "Не найдены обе камеры LCamera и RCamera";
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
@@ -496,6 +465,7 @@ void Camera::stereoShot() {
         return;
     }
 
+    cv::Mat lFrame, rFrame;
     {
         QMutexLocker lLocker(lCameraInfo->mutex);
         QMutexLocker rLocker(rCameraInfo->mutex);
@@ -518,10 +488,13 @@ void Camera::stereoShot() {
         return;
     }
 
-    std::filesystem::path pathToStereoDirectory = std::filesystem::current_path() / "stereo";
+    std::filesystem::path stereoDirectory = std::filesystem::current_path() / "stereo";
+    std::filesystem::path lDirectory = stereoDirectory / "L";
+    std::filesystem::path rDirectory = stereoDirectory / "R";
+
     try {
-        if (!std::filesystem::exists(pathToStereoDirectory)) {
-            if (!std::filesystem::create_directory(pathToStereoDirectory)) {
+        if (!std::filesystem::exists(stereoDirectory)) {
+            if (!std::filesystem::create_directory(stereoDirectory)) {
                 QString errorMsg = "Не удалось создать директорию stereo";
                 qDebug() << errorMsg;
                 emit errorOccurred("Camera", errorMsg);
@@ -529,7 +502,26 @@ void Camera::stereoShot() {
                 return;
             }
         }
-        std::filesystem::perms perms = std::filesystem::status(pathToStereoDirectory).permissions();
+        if (!std::filesystem::exists(lDirectory)) {
+            if (!std::filesystem::create_directory(lDirectory)) {
+                QString errorMsg = "Не удалось создать директорию stereo/L";
+                qDebug() << errorMsg;
+                emit errorOccurred("Camera", errorMsg);
+                emit stereoShotFailed(errorMsg);
+                return;
+            }
+        }
+        if (!std::filesystem::exists(rDirectory)) {
+            if (!std::filesystem::create_directory(rDirectory)) {
+                QString errorMsg = "Не удалось создать директорию stereo/R";
+                qDebug() << errorMsg;
+                emit errorOccurred("Camera", errorMsg);
+                emit stereoShotFailed(errorMsg);
+                return;
+            }
+        }
+
+        std::filesystem::perms perms = std::filesystem::status(stereoDirectory).permissions();
         if ((perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
             QString errorMsg = "Нет прав на запись в директорию stereo";
             qDebug() << errorMsg;
@@ -538,7 +530,7 @@ void Camera::stereoShot() {
             return;
         }
     } catch (const std::filesystem::filesystem_error& e) {
-        QString errorMsg = QString("Ошибка файловой системы при создании директории stereo: %1").arg(e.what());
+        QString errorMsg = QString("Ошибка файловой системы при создании директорий: %1").arg(e.what());
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
         emit stereoShotFailed(errorMsg);
@@ -558,8 +550,8 @@ void Camera::stereoShot() {
 
     std::string lFileName = "LCamera_" + timestamp + ".png";
     std::string rFileName = "RCamera_" + timestamp + ".png";
-    std::string lFilePath = (pathToStereoDirectory / lFileName).string();
-    std::string rFilePath = (pathToStereoDirectory / rFileName).string();
+    std::string lFilePath = (lDirectory / lFileName).string();
+    std::string rFilePath = (rDirectory / rFileName).string();
 
     std::vector<int> compression_params;
     compression_params.push_back(cv::IMWRITE_PNG_COMPRESSION);
@@ -580,7 +572,7 @@ void Camera::stereoShot() {
             emit stereoShotFailed(errorMsg);
             return;
         }
-        qDebug() << "Стереокадры успешно сохранены: LCamera, " << "RCamera";
+        qDebug() << "Стереокадры успешно сохранены: " << QString::fromStdString(lFilePath) << ", " << QString::fromStdString(rFilePath);
         emit stereoShotSaved(QString::fromStdString(lFilePath) + ";" + QString::fromStdString(rFilePath));
     } catch (const cv::Exception& e) {
         QString errorMsg = QString("Ошибка сохранения стереокадров: %1").arg(e.what());
