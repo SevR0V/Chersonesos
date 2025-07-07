@@ -56,4 +56,5 @@ void UdpHandler::onJoystickDataChange(DualJoystickState joysticsState){
     JoystickState secondaryJoyState = joysticsState.secondary;
     QJsonObject controlProfile = profileManager->getProfile();
 
+
 }
