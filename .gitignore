@@ -86,3 +86,4 @@ CMakeLists.txt.user*
 /.qtc_clangd
 Chersonesos.pro.user
 *.user
+*.user
