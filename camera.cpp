@@ -3,7 +3,6 @@
 Camera::Camera(QStringList& names, QObject* parent) : QObject(parent), m_cameraNames(names), m_reconnectAttempts(0), m_maxReconnectAttempts(5) {
     qDebug() << "Создание объекта Camera";
     memset(&m_deviceList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
-    //m_cameraNames = {"LCamera", "RCamera"};
 
     m_checkCameraTimer = new QTimer(this);
     connect(m_checkCameraTimer, &QTimer::timeout, this, &Camera::checkCameras);
@@ -16,7 +15,6 @@ Camera::Camera(QStringList& names, QObject* parent) : QObject(parent), m_cameraN
         emit errorOccurred("Camera", errorMsg);
         return;
     }
-
 }
 
 Camera::~Camera() {
@@ -48,8 +46,35 @@ Camera::~Camera() {
     qDebug() << "Good Luck!";
 }
 
-void Camera::initializeCameras() {
+void Camera::startCamera() {
+    start();
+}
 
+void Camera::stopAllCameras() {
+    stopAll();
+}
+
+void Camera::startRecordingSlot(const QString& cameraName, int recordInterval, int storedVideoFilesLimit) {
+    startRecording(cameraName, recordInterval, storedVideoFilesLimit);
+}
+
+void Camera::stopRecordingSlot(const QString& cameraName) {
+    stopRecording(cameraName);
+}
+
+void Camera::startStreamingSlot(const QString& cameraName, int port) {
+    startStreaming(cameraName, port);
+}
+
+void Camera::stopStreamingSlot(const QString& cameraName) {
+    stopStreaming(cameraName);
+}
+
+void Camera::stereoShotSlot() {
+    stereoShot();
+}
+
+void Camera::initializeCameras() {
     if (checkCameras() != MV_OK) {
         QString errorMsg = "Не удалось обновить список камер";
         qDebug() << errorMsg;
@@ -146,8 +171,6 @@ void Camera::initializeCameras() {
 }
 
 void Camera::reinitializeCameras() {
-
-
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         CameraFrameInfo* frameInfo = m_cameras[i];
         CameraVideoFrameInfo* videoInfo = m_videoInfos[i];
@@ -333,7 +356,7 @@ void Camera::stopAll() {
     qDebug() << "Все потоки остановлены.";
 }
 
-void Camera::startRecording(const QString& cameraName, int recordInterval,  int storedVideoFilesLimit) {
+void Camera::startRecording(const QString& cameraName, int recordInterval, int storedVideoFilesLimit) {
     qDebug() << "Попытка запуска записи для камеры" << cameraName;
     bool cameraFound = false;
     for (size_t i = 0; i < m_cameras.size(); ++i) {
@@ -395,12 +418,10 @@ void Camera::startStreaming(const QString& cameraName, int port) {
             cameraFound = true;
             CameraVideoFrameInfo* videoInfo = m_videoInfos[i];
             if (videoInfo->streamer && videoInfo->streamerThread) {
-                // Останавливаем и удаляем старый streamer
                 videoInfo->streamer->stopStreaming();
                 delete videoInfo->streamer;
                 videoInfo->streamer = nullptr;
 
-                // Создаем новый streamer
                 videoInfo->streamer = new VideoStreamer(videoInfo, port);
                 videoInfo->streamer->moveToThread(videoInfo->streamerThread);
                 qDebug() << "Запуск стриминга для камеры" << videoInfo->name;
@@ -601,7 +622,6 @@ int Camera::checkCameras() {
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
 
-        // Запуск таймера для повторной проверки через 10 секунд
         if (!m_checkCameraTimer->isActive()) {
             qDebug() << "Запуск таймера для повторной проверки камер через 10 секунд";
             m_checkCameraTimer->start(10000);
@@ -609,7 +629,6 @@ int Camera::checkCameras() {
         return nRet;
     }
 
-    // Остановка таймера, если он был запущен
     if (m_checkCameraTimer->isActive()) {
         qDebug() << "Камеры найдены, остановка таймера проверки";
         m_checkCameraTimer->stop();
@@ -648,7 +667,6 @@ int Camera::checkCameras() {
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
 
-        // Запуск таймера для повторной проверки через 10 секунд
         if (!m_checkCameraTimer->isActive()) {
             qDebug() << "Запуск таймера для повторной проверки камер через 10 секунд";
             m_checkCameraTimer->start(10000);
@@ -656,10 +674,7 @@ int Camera::checkCameras() {
         return -1;
     }
 
-    // Камеры найдены, вызов reconnectCameras()
     qDebug() << "Камеры найдены, вызов reconnectCameras()";
-    //reconnectCameras();
-
     cleanupAllCameras();
     reinitializeCameras();
     start();
@@ -794,7 +809,6 @@ void Camera::getHandle(unsigned int cameraID, void** handle, const std::string& 
             destroyCameras(*handle);
             *handle = nullptr;
             return;
-            ;
         }
     }
 
@@ -844,19 +858,15 @@ void Camera::handleCaptureFailure(const QString& reason) {
     emit errorOccurred("Camera", errorMsg);
 
     if (reason.contains("Не удалось получить буфер изображения")) {
-        if (m_reconnectAttempts < m_maxReconnectAttempts) {
-            m_reconnectAttempts++;
-            qDebug() << "Попытка переподключения" << m_reconnectAttempts << "из" << m_maxReconnectAttempts;
-            reconnectCameras();
-        } else {
-            qDebug() << "Достигнуто максимальное количество попыток переподключения";
-            stopAll();
-            emit finished();
+        qDebug() << "Камера, возможно, отключена. Остановка всех операций и запуск таймера для периодической проверки.";
+        stopAll(); // Останавливаем все потоки, чтобы избежать ошибок
+        if (!m_checkCameraTimer->isActive()) {
+            m_checkCameraTimer->start(10000); // Запускаем таймер с интервалом 10 секунд
         }
     } else {
         qDebug() << "Неизвестная ошибка захвата, остановка всех потоков";
         stopAll();
-        emit finished();
+        emit finished(); // Для других ошибок завершаем работу
     }
 }
 
