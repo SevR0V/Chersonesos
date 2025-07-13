@@ -1,4 +1,5 @@
 #include "UdpTelemetryParser.h"
+#include <QDebug>
 
 UdpTelemetryParser::UdpTelemetryParser(QObject *parent)
     : QObject(parent)
@@ -12,6 +13,7 @@ bool UdpTelemetryParser::parse(const QByteArray &data, TelemetryPacket &packet)
 
     QDataStream stream(data);
     stream.setByteOrder(QDataStream::LittleEndian);
+    stream.setFloatingPointPrecision(QDataStream::SinglePrecision);
 
     stream >> packet.flags;
     stream >> packet.roll;

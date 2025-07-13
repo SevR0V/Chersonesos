@@ -46,10 +46,6 @@ private slots:
     void onSecondaryHatPressed(int hat, QString direction);
     void onLoadProfileBtnClick();
 
-    void on_loadProfileBut_clicked();
-
-    void on_saveProfileBut_clicked();
-
 public slots:
     void stopProgressCountdown();
 

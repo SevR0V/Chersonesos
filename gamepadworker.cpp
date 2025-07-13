@@ -84,6 +84,9 @@ void GamepadWorker::pollDevices() {
     if (numJoysticks != lastNumJoysticks) {
         updateDeviceList();
     }
+    if (numJoysticks == 0){
+        return;
+    }
 
     JoystickState primaryState, secondaryState;
 
@@ -137,10 +140,12 @@ void GamepadWorker::pollDevices() {
         }
     }
 
-    DualJoystickState combined;
-    combined.primary = primaryState;
-    combined.secondary = secondaryState;
-    emit joysticksUpdated(combined);
+    if(primaryJoystick || secondaryJoystick){
+        DualJoystickState combined;
+        combined.primary = primaryState;
+        combined.secondary = secondaryState;
+        emit joysticksUpdated(combined);
+    }
 
     if (primaryJoystick) {
         if (primaryAxisValues.empty()) {
@@ -280,19 +285,19 @@ void GamepadWorker::updateDeviceList()
 
 void GamepadWorker::deactivateJoystick(SDL_Joystick *&joystick)
 {
-    if (joystick) {
-        QString nameToRemove;
-        for (const QString &name : joysticks.keys()) {
-            if (joysticks[name] == joystick && name != currentPrimaryName && name != currentSecondaryName) {
-                nameToRemove = name;
-                break;
-            }
-        }
-        if (!nameToRemove.isEmpty()) {
-            joysticks.remove(nameToRemove);
-            SDL_CloseJoystick(joystick);
-        }
-        joystick = nullptr;
-        qDebug() << "Joystick deactivated";
-    }
+    // if (joystick) {
+    //     QString nameToRemove;
+    //     for (const QString &name : joysticks.keys()) {
+    //         if (joysticks[name] == joystick && name != currentPrimaryName && name != currentSecondaryName) {
+    //             nameToRemove = name;
+    //             break;
+    //         }
+    //     }
+    //     if (!nameToRemove.isEmpty()) {
+    //         joysticks.remove(nameToRemove);
+    //         SDL_CloseJoystick(joystick);
+    //     }
+    //     joystick = nullptr;
+    //     qDebug() << "Joystick deactivated";
+    // }
 }

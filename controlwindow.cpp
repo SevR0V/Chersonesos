@@ -161,6 +161,13 @@ void ControlWindow::updateDeviceList(const QStringList &deviceNames)
         ui->secondaryDeviceList->setCurrentIndex(0);
     }
 
+    // QString profileName = ui->profileList->currentText();
+    // if (profileManager->loadFromProfileName(profileName)){
+    //     qDebug() << "profile " << profileName << " loaded";
+    // }
+
+    onLoadProfileBtnClick();
+
     _worker->resetDeviceListChanged();
 }
 
@@ -333,15 +340,3 @@ void ControlWindow::onSecondaryHatPressed(int hat, QString direction)
     if(! activeInputName.contains("but", Qt::CaseInsensitive)) return;
     ControlWindow::profileActionDetected("hat_" + direction, hat);
 }
-
-void ControlWindow::on_loadProfileBut_clicked()
-{
-
-}
-
-
-void ControlWindow::on_saveProfileBut_clicked()
-{
-
-}
-

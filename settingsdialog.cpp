@@ -22,7 +22,7 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     QRegularExpressionValidator *ipValidator = new QRegularExpressionValidator(ipRegex, this);
     ui->ipLineEdit->setValidator(ipValidator);
 
-    ui->portLineEdit->setPlaceholderText("8080");
+    ui->portLineEdit->setPlaceholderText("1337");
     QIntValidator *validator = new QIntValidator(this);
     ui->portLineEdit->setValidator(validator);
 

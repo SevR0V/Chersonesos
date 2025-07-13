@@ -102,6 +102,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(udpThread, &QThread::finished, udpHandler, &QObject::deleteLater);
     connect(udpHandler, &UdpHandler::datagramReceived,
             this, &MainWindow::onDatagramReceived);
+    connect(udpHandler, &UdpHandler::onlineStateChanged,
+            this, &MainWindow::onlineStateChanged);
 }
 
 MainWindow::~MainWindow()
@@ -112,6 +114,14 @@ MainWindow::~MainWindow()
     workerThread->wait();
     udpThread->quit();
     udpThread->wait();
+}
+
+void MainWindow::onlineStateChanged(const bool &onlineState){
+    if(onlineState){
+        ui->onlineLable->setText("В сети");
+    }else{
+        ui->onlineLable->setText("Не в сети");
+    }
 }
 
 void MainWindow::processFrame(CameraFrameInfo* camera)

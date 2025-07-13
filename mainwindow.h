@@ -38,6 +38,7 @@ private slots:
     void on_takeStereoframeButton_clicked();
     void onDatagramReceived(const QByteArray &data, const QHostAddress &sender, quint16 port);
     void onJoystickUpdate(const DualJoystickState &state);
+    void onlineStateChanged(const bool &onlineState);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
