@@ -34,4 +34,5 @@ private:
     ProfileManager *profileManager;
     UdpTelemetryParser *telemetryParser;
     GamepadWorker *gamepadWorker;
+
 };
