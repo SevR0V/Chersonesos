@@ -15,6 +15,7 @@ public slots:
     void processFrame(const QByteArray& frameData, int width, int height, int pixelType);
 
 signals:
+    void newFrameAvailable();
     void errorOccurred(const QString& component, const QString& message);
 
 private:

@@ -37,6 +37,15 @@ public:
     QStringList getCameraNames() const;
     void initializeCameras();
 
+public slots:
+    void startCamera();
+    void stopAllCameras();
+    void startRecordingSlot(const QString& cameraName, int recordInterval, int storedVideoFilesLimit);
+    void stopRecordingSlot(const QString& cameraName);
+    void startStreamingSlot(const QString& cameraName, int port);
+    void stopStreamingSlot(const QString& cameraName);
+    void stereoShotSlot();
+
 private:
     int checkCameras();
     int destroyCameras(void* handle);

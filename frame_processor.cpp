@@ -12,6 +12,7 @@ void FrameProcessor::processFrame(const QByteArray& frameData, int width, int he
             cv::Mat bayerFrame(height, width, CV_8UC1, const_cast<char*>(frameData.data()), width);
             rawFrame = cv::Mat(height, width, CV_8UC3);
             cv::cvtColor(bayerFrame, rawFrame, cv::COLOR_BayerRG2RGB);
+            emit newFrameAvailable();
         } else {
             QString errorMsg = QString("Неподдерживаемый формат пикселей для камеры %1: pixelType = %2")
                                    .arg(m_videoInfo->name).arg(pixelType);

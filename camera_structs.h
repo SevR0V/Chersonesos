@@ -51,7 +51,7 @@ struct CameraVideoFrameInfo {
 
     CameraVideoFrameInfo() {
         mutex = new QMutex();
-        frameBuffer.resize(5); // Инициализируем буфер размером 5
+        frameBuffer.resize(8);
     }
 
     ~CameraVideoFrameInfo() {

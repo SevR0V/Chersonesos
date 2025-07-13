@@ -14,7 +14,6 @@
 #include "camera.h"
 #include "controlwindow.h"
 #include "profilemanager.h"
-#include "controlwindow.h"
 #include "settingsdialog.h"
 #include "udphandler.h"
 #include "gamepadworker.h"
@@ -29,6 +28,15 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+
+signals:
+    void startCameraSignal();
+    void stopAllCamerasSignal();
+    void startRecordingSignal(const QString& cameraName, int recordInterval, int storedVideoFilesLimit);
+    void stopRecordingSignal(const QString& cameraName);
+    void startStreamingSignal(const QString& cameraName, int port);
+    void stopStreamingSignal(const QString& cameraName);
+    void stereoShotSignal();
 
 private slots:
     void processFrame(CameraFrameInfo* camera);
@@ -66,7 +74,6 @@ private:
 
     QThread *udpThread;
     UdpHandler *udpHandler;
-
     QThread *workerThread;
     GamepadWorker *worker;
 };

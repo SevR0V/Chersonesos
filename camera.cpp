@@ -3,7 +3,6 @@
 Camera::Camera(QStringList& names, QObject* parent) : QObject(parent), m_cameraNames(names), m_reconnectAttempts(0), m_maxReconnectAttempts(5) {
     qDebug() << "Создание объекта Camera";
     memset(&m_deviceList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
-    //m_cameraNames = {"LCamera", "RCamera"};
 
     m_checkCameraTimer = new QTimer(this);
     connect(m_checkCameraTimer, &QTimer::timeout, this, &Camera::checkCameras);
@@ -16,7 +15,6 @@ Camera::Camera(QStringList& names, QObject* parent) : QObject(parent), m_cameraN
         emit errorOccurred("Camera", errorMsg);
         return;
     }
-
 }
 
 Camera::~Camera() {
@@ -48,8 +46,35 @@ Camera::~Camera() {
     qDebug() << "Good Luck!";
 }
 
-void Camera::initializeCameras() {
+void Camera::startCamera() {
+    start();
+}
 
+void Camera::stopAllCameras() {
+    stopAll();
+}
+
+void Camera::startRecordingSlot(const QString& cameraName, int recordInterval, int storedVideoFilesLimit) {
+    startRecording(cameraName, recordInterval, storedVideoFilesLimit);
+}
+
+void Camera::stopRecordingSlot(const QString& cameraName) {
+    stopRecording(cameraName);
+}
+
+void Camera::startStreamingSlot(const QString& cameraName, int port) {
+    startStreaming(cameraName, port);
+}
+
+void Camera::stopStreamingSlot(const QString& cameraName) {
+    stopStreaming(cameraName);
+}
+
+void Camera::stereoShotSlot() {
+    stereoShot();
+}
+
+void Camera::initializeCameras() {
     if (checkCameras() != MV_OK) {
         QString errorMsg = "Не удалось обновить список камер";
         qDebug() << errorMsg;
@@ -146,8 +171,6 @@ void Camera::initializeCameras() {
 }
 
 void Camera::reinitializeCameras() {
-
-
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         CameraFrameInfo* frameInfo = m_cameras[i];
         CameraVideoFrameInfo* videoInfo = m_videoInfos[i];
@@ -333,7 +356,7 @@ void Camera::stopAll() {
     qDebug() << "Все потоки остановлены.";
 }
 
-void Camera::startRecording(const QString& cameraName, int recordInterval,  int storedVideoFilesLimit) {
+void Camera::startRecording(const QString& cameraName, int recordInterval, int storedVideoFilesLimit) {
     qDebug() << "Попытка запуска записи для камеры" << cameraName;
     bool cameraFound = false;
     for (size_t i = 0; i < m_cameras.size(); ++i) {
@@ -395,12 +418,10 @@ void Camera::startStreaming(const QString& cameraName, int port) {
             cameraFound = true;
             CameraVideoFrameInfo* videoInfo = m_videoInfos[i];
             if (videoInfo->streamer && videoInfo->streamerThread) {
-                // Останавливаем и удаляем старый streamer
                 videoInfo->streamer->stopStreaming();
                 delete videoInfo->streamer;
                 videoInfo->streamer = nullptr;
 
-                // Создаем новый streamer
                 videoInfo->streamer = new VideoStreamer(videoInfo, port);
                 videoInfo->streamer->moveToThread(videoInfo->streamerThread);
                 qDebug() << "Запуск стриминга для камеры" << videoInfo->name;
@@ -458,37 +479,6 @@ void Camera::stereoShot() {
     }
 
     if (!lCameraInfo || !rCameraInfo) {
-        qDebug() << "Не найдены обе камеры LCamera и RCamera";
-        emit stereoShotFailed("Не найдены камеры");
-        return;
-    }
-
-    cv::Mat lFrame, rFrame;
-    if (lCameraInfo->mutex->tryLock(1000) && rCameraInfo->mutex->tryLock(1000)) {
-        if (!lCameraInfo->frameBuffer.empty()) lFrame = lCameraInfo->frameBuffer[0].clone();
-        if (!rCameraInfo->frameBuffer.empty()) rFrame = rCameraInfo->frameBuffer[0].clone();
-        lCameraInfo->mutex->unlock();
-        rCameraInfo->mutex->unlock();
-    } else {
-        qDebug() << "Не удалось заблокировать мьютексы для доступа к буферам";
-        emit stereoShotFailed("Тайм-аут блокировки мьютексов");
-        return;
-    }
-
-    if (lFrame.empty() || rFrame.empty()) {
-        qDebug() << "Один или оба кадра пусты";
-        emit stereoShotFailed("Кадры пусты");
-        return;
-    }
-    for (size_t i = 0; i < m_cameras.size(); ++i) {
-        if (m_cameras[i]->name == "LCamera") {
-            lCameraInfo = m_videoInfos[i];
-        } else if (m_cameras[i]->name == "RCamera") {
-            rCameraInfo = m_videoInfos[i];
-        }
-    }
-
-    if (!lCameraInfo || !rCameraInfo) {
         QString errorMsg = "Не найдены обе камеры LCamera и RCamera";
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
@@ -496,6 +486,7 @@ void Camera::stereoShot() {
         return;
     }
 
+    cv::Mat lFrame, rFrame;
     {
         QMutexLocker lLocker(lCameraInfo->mutex);
         QMutexLocker rLocker(rCameraInfo->mutex);
@@ -518,10 +509,13 @@ void Camera::stereoShot() {
         return;
     }
 
-    std::filesystem::path pathToStereoDirectory = std::filesystem::current_path() / "stereo";
+    std::filesystem::path stereoDirectory = std::filesystem::current_path() / "stereo";
+    std::filesystem::path lDirectory = stereoDirectory / "L";
+    std::filesystem::path rDirectory = stereoDirectory / "R";
+
     try {
-        if (!std::filesystem::exists(pathToStereoDirectory)) {
-            if (!std::filesystem::create_directory(pathToStereoDirectory)) {
+        if (!std::filesystem::exists(stereoDirectory)) {
+            if (!std::filesystem::create_directory(stereoDirectory)) {
                 QString errorMsg = "Не удалось создать директорию stereo";
                 qDebug() << errorMsg;
                 emit errorOccurred("Camera", errorMsg);
@@ -529,7 +523,26 @@ void Camera::stereoShot() {
                 return;
             }
         }
-        std::filesystem::perms perms = std::filesystem::status(pathToStereoDirectory).permissions();
+        if (!std::filesystem::exists(lDirectory)) {
+            if (!std::filesystem::create_directory(lDirectory)) {
+                QString errorMsg = "Не удалось создать директорию stereo/L";
+                qDebug() << errorMsg;
+                emit errorOccurred("Camera", errorMsg);
+                emit stereoShotFailed(errorMsg);
+                return;
+            }
+        }
+        if (!std::filesystem::exists(rDirectory)) {
+            if (!std::filesystem::create_directory(rDirectory)) {
+                QString errorMsg = "Не удалось создать директорию stereo/R";
+                qDebug() << errorMsg;
+                emit errorOccurred("Camera", errorMsg);
+                emit stereoShotFailed(errorMsg);
+                return;
+            }
+        }
+
+        std::filesystem::perms perms = std::filesystem::status(stereoDirectory).permissions();
         if ((perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
             QString errorMsg = "Нет прав на запись в директорию stereo";
             qDebug() << errorMsg;
@@ -538,7 +551,7 @@ void Camera::stereoShot() {
             return;
         }
     } catch (const std::filesystem::filesystem_error& e) {
-        QString errorMsg = QString("Ошибка файловой системы при создании директории stereo: %1").arg(e.what());
+        QString errorMsg = QString("Ошибка файловой системы при создании директорий: %1").arg(e.what());
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
         emit stereoShotFailed(errorMsg);
@@ -558,8 +571,8 @@ void Camera::stereoShot() {
 
     std::string lFileName = "LCamera_" + timestamp + ".png";
     std::string rFileName = "RCamera_" + timestamp + ".png";
-    std::string lFilePath = (pathToStereoDirectory / lFileName).string();
-    std::string rFilePath = (pathToStereoDirectory / rFileName).string();
+    std::string lFilePath = (lDirectory / lFileName).string();
+    std::string rFilePath = (rDirectory / rFileName).string();
 
     std::vector<int> compression_params;
     compression_params.push_back(cv::IMWRITE_PNG_COMPRESSION);
@@ -580,7 +593,7 @@ void Camera::stereoShot() {
             emit stereoShotFailed(errorMsg);
             return;
         }
-        qDebug() << "Стереокадры успешно сохранены: LCamera, " << "RCamera";
+        qDebug() << "Стереокадры успешно сохранены: " << QString::fromStdString(lFilePath) << ", " << QString::fromStdString(rFilePath);
         emit stereoShotSaved(QString::fromStdString(lFilePath) + ";" + QString::fromStdString(rFilePath));
     } catch (const cv::Exception& e) {
         QString errorMsg = QString("Ошибка сохранения стереокадров: %1").arg(e.what());
@@ -609,7 +622,6 @@ int Camera::checkCameras() {
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
 
-        // Запуск таймера для повторной проверки через 10 секунд
         if (!m_checkCameraTimer->isActive()) {
             qDebug() << "Запуск таймера для повторной проверки камер через 10 секунд";
             m_checkCameraTimer->start(10000);
@@ -617,7 +629,6 @@ int Camera::checkCameras() {
         return nRet;
     }
 
-    // Остановка таймера, если он был запущен
     if (m_checkCameraTimer->isActive()) {
         qDebug() << "Камеры найдены, остановка таймера проверки";
         m_checkCameraTimer->stop();
@@ -656,7 +667,6 @@ int Camera::checkCameras() {
         qDebug() << errorMsg;
         emit errorOccurred("Camera", errorMsg);
 
-        // Запуск таймера для повторной проверки через 10 секунд
         if (!m_checkCameraTimer->isActive()) {
             qDebug() << "Запуск таймера для повторной проверки камер через 10 секунд";
             m_checkCameraTimer->start(10000);
@@ -664,10 +674,7 @@ int Camera::checkCameras() {
         return -1;
     }
 
-    // Камеры найдены, вызов reconnectCameras()
     qDebug() << "Камеры найдены, вызов reconnectCameras()";
-    //reconnectCameras();
-
     cleanupAllCameras();
     reinitializeCameras();
     start();
@@ -802,7 +809,6 @@ void Camera::getHandle(unsigned int cameraID, void** handle, const std::string& 
             destroyCameras(*handle);
             *handle = nullptr;
             return;
-            ;
         }
     }
 
@@ -852,19 +858,15 @@ void Camera::handleCaptureFailure(const QString& reason) {
     emit errorOccurred("Camera", errorMsg);
 
     if (reason.contains("Не удалось получить буфер изображения")) {
-        if (m_reconnectAttempts < m_maxReconnectAttempts) {
-            m_reconnectAttempts++;
-            qDebug() << "Попытка переподключения" << m_reconnectAttempts << "из" << m_maxReconnectAttempts;
-            reconnectCameras();
-        } else {
-            qDebug() << "Достигнуто максимальное количество попыток переподключения";
-            stopAll();
-            emit finished();
+        qDebug() << "Камера, возможно, отключена. Остановка всех операций и запуск таймера для периодической проверки.";
+        stopAll(); // Останавливаем все потоки, чтобы избежать ошибок
+        if (!m_checkCameraTimer->isActive()) {
+            m_checkCameraTimer->start(10000); // Запускаем таймер с интервалом 10 секунд
         }
     } else {
         qDebug() << "Неизвестная ошибка захвата, остановка всех потоков";
         stopAll();
-        emit finished();
+        emit finished(); // Для других ошибок завершаем работу
     }
 }
 

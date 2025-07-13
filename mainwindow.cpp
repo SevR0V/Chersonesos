@@ -28,8 +28,33 @@ MainWindow::MainWindow(QWidget *parent)
 
 
 
+    // Создание и настройка потока Camera
+    QThread* cameraThread = new QThread(this);
     QStringList names = {"LCamera", "RCamera"};
-    m_camera = new Camera(names, this);
+    m_camera = new Camera(names);
+    m_camera->moveToThread(cameraThread);
+
+    // Подключение сигналов MainWindow к слотам Camera
+    connect(this, &MainWindow::startCameraSignal, m_camera, &Camera::startCamera, Qt::QueuedConnection);
+    connect(this, &MainWindow::stopAllCamerasSignal, m_camera, &Camera::stopAllCameras, Qt::QueuedConnection);
+    connect(this, &MainWindow::startRecordingSignal, m_camera, &Camera::startRecordingSlot, Qt::QueuedConnection);
+    connect(this, &MainWindow::stopRecordingSignal, m_camera, &Camera::stopRecordingSlot, Qt::QueuedConnection);
+    connect(this, &MainWindow::startStreamingSignal, m_camera, &Camera::startStreamingSlot, Qt::QueuedConnection);
+    connect(this, &MainWindow::stopStreamingSignal, m_camera, &Camera::stopStreamingSlot, Qt::QueuedConnection);
+    connect(this, &MainWindow::stereoShotSignal, m_camera, &Camera::stereoShotSlot, Qt::QueuedConnection);
+
+    // Подключение сигналов Camera к слотам MainWindow
+    connect(m_camera, &Camera::greatSuccess, this, &MainWindow::handleCameraSuccess);
+    connect(m_camera, &Camera::frameReady, this, &MainWindow::processFrame);
+    connect(m_camera, &Camera::errorOccurred, this, &MainWindow::handleCameraError);
+    connect(m_camera, &Camera::reconnectDone, this, &MainWindow::afterReconnect);
+    connect(m_camera, &Camera::finished, this, &QMainWindow::close);
+
+    cameraThread->start();
+
+    // Запуск камеры через сигнал
+    emit startCameraSignal();
+
     m_cameraLayout = new QHBoxLayout();
     ui->videoWidget->setLayout(m_cameraLayout);
     ui->videoWidget->setMinimumSize(800, 600);
@@ -50,18 +75,9 @@ MainWindow::MainWindow(QWidget *parent)
         qDebug() << "Установлен labelWinId для камеры" << cam->name << ":" << cam->labelWinId;
     }
 
-    connect(m_camera, &Camera::greatSuccess, this, &MainWindow::handleCameraSuccess);
-    connect(m_camera, &Camera::frameReady, this, &MainWindow::processFrame);
-    connect(m_camera, &Camera::errorOccurred, this, &MainWindow::handleCameraError);
-    connect(m_camera, &Camera::reconnectDone, this, &MainWindow::afterReconnect);
-    connect(m_camera, &Camera::finished, this, &QMainWindow::close);
-
-    m_camera->start();
-    qDebug() << "Камера запущена.";
-
     QTimer::singleShot(5000, this, [this]() {
-        m_camera->startStreaming("LCamera", 8080);
-        m_camera->startStreaming("RCamera", 8081);
+        emit startStreamingSignal("LCamera", 8080);
+        emit startStreamingSignal("RCamera", 8081);
     });
 
 
@@ -108,7 +124,16 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
-    delete m_camera;
+    if (m_camera) {
+        QThread* cameraThread = m_camera->thread();
+        if (cameraThread && cameraThread->isRunning()) {
+            cameraThread->quit();
+            cameraThread->wait(5000);
+        }
+        delete m_camera;
+        m_camera = nullptr;
+    }
+
     delete ui;
     workerThread->quit();
     workerThread->wait();
@@ -127,7 +152,6 @@ void MainWindow::onlineStateChanged(const bool &onlineState){
 void MainWindow::processFrame(CameraFrameInfo* camera)
 {
     QMutexLocker lock(camera->mutex);
-
     if (camera->name == "LCamera") {
         m_label->setPixmap(QPixmap::fromImage(camera->img));
     }
@@ -136,7 +160,7 @@ void MainWindow::processFrame(CameraFrameInfo* camera)
 void MainWindow::showHideLeftPanel()
 {
     isPanelHidden = !isPanelHidden;
-    if(isPanelHidden){
+    if (isPanelHidden) {
         QIcon rightArrow(":/Resources/Icons/right_arrow.ico");
         ui->hideShowButton->setIcon(rightArrow);
 
@@ -160,7 +184,7 @@ void MainWindow::showHideLeftPanel()
 
         setMasterButtonState(ui->masterButton, masterState, isPanelHidden);
         ui->takeStereoframeButton->setText("Сделать стереокадр      ");
-        setRecordButtonState(ui->startRecordButton,isRecording, isPanelHidden);
+        setRecordButtonState(ui->startRecordButton, isRecording, isPanelHidden);
         ui->controlsButton->setText("Управление");
         ui->settingsButton->setText("Настройки");
         ui->onlineLable->setText("Не в сети");
@@ -178,31 +202,29 @@ void MainWindow::showHideLeftPanel()
 
 void MainWindow::handleCameraError(const QString& component, const QString& message)
 {
-
 }
 
 void MainWindow::handleCameraSuccess(const QString& component, const QString& message)
 {
-
 }
 
 void MainWindow::afterReconnect(Camera* camera)
 {
     if (isRecording) {
-        m_camera->startRecording("LCamera", 120, 0); // Имя камеры, интервал записи в секундах, ограничение по количеству файлов
+        emit startRecordingSignal("LCamera", 120, 0);
         if (isStereoRecording) {
-            m_camera->startRecording("RCamera", 120, 0);
+            emit startRecordingSignal("RCamera", 120, 0);
         }
     }
-    m_camera->startStreaming("LCamera", 8080);
-    m_camera->startStreaming("RCamera", 8081);
+    emit startStreamingSignal("LCamera", 8080);
+    emit startStreamingSignal("RCamera", 8081);
     qDebug() << "Переподключение выполнено";
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event)
 {
     if (event->key() == Qt::Key_Escape) {
-        m_camera->stopAll();
+        emit stopAllCamerasSignal();
         close();
     }
     QMainWindow::keyPressEvent(event);
@@ -210,7 +232,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
 
 void MainWindow::on_takeStereoframeButton_clicked()
 {
-    m_camera->stereoShot();
+    emit stereoShotSignal();
 }
 
 void MainWindow::masterSwitch()
@@ -221,14 +243,13 @@ void MainWindow::masterSwitch()
 
 void setMasterButtonState(QPushButton *button, const bool masterState, const bool isPanelHidden)
 {
-    if(masterState)
-    {
-        if(! isPanelHidden)
+    if (masterState) {
+        if (!isPanelHidden)
             button->setText("Заблокировать ТНПА");
         QIcon unlocked(":/Resources/Icons/lock_open.ico");
         button->setIcon(unlocked);
     } else {
-        if(! isPanelHidden)
+        if (!isPanelHidden)
             button->setText("Разблокировать ТНПА");
         QIcon locked(":/Resources/Icons/lock_closed.ico");
         button->setIcon(locked);
@@ -244,44 +265,45 @@ void MainWindow::startRecord()
     setRecordButtonState(ui->startRecordButton, isRecording, isPanelHidden);
 
     if (isRecording) {
-        m_camera->startRecording("LCamera", 120, 0);
+        emit startRecordingSignal("LCamera", 120, 0);
         if (isStereoRecording) {
-            m_camera->startRecording("RCamera", 120, 0);
+            emit startRecordingSignal("RCamera", 120, 0);
         }
     } else {
-        m_camera->stopRecording("LCamera");
+        emit stopRecordingSignal("LCamera");
         if (isStereoRecording) {
-            m_camera->stopRecording("RCamera");
+            emit stopRecordingSignal("RCamera");
         }
     }
 }
 
 void setRecordButtonState(QPushButton *button, const bool isRecording, const bool isPanelHidden)
 {
-    if(isRecording)
-    {
-        if(! isPanelHidden)
+    if (isRecording) {
+        if (!isPanelHidden)
             button->setText("Остановить запись");
         QIcon icon(":/Resources/Icons/circle_red.ico");
         button->setIcon(icon);
     } else {
-        if(! isPanelHidden)
+        if (!isPanelHidden)
             button->setText("Записать видео");
         QIcon icon(":/Resources/Icons/circle_black.ico");
         button->setIcon(icon);
     }
 }
 
-void MainWindow::onDatagramReceived(const QByteArray &data, const QHostAddress &sender, quint16 port){
-
+void MainWindow::onDatagramReceived(const QByteArray &data, const QHostAddress &sender, quint16 port)
+{
 }
 
-void MainWindow::onResize() {
+void MainWindow::onResize()
+{
     if (m_cameraLayout) {
         m_cameraLayout->update();
     }
 }
 
-void MainWindow::onJoystickUpdate(const DualJoystickState &state){
-    //qDebug() << state;
+void MainWindow::onJoystickUpdate(const DualJoystickState &state)
+{
+    // qDebug() << state;
 }
