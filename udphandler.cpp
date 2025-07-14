@@ -12,7 +12,7 @@
 UdpHandler::UdpHandler(ProfileManager *profileManager, UdpTelemetryParser *telemetryParser, GamepadWorker *gamepadWorker, QObject *parent)
     : QObject(parent),
     socket(new QUdpSocket(this)),
-    remoteAddress("192.168.50.208"),
+    remoteAddress("192.168.88.246"),
     remotePort(1337),
     profileManager(profileManager),
     telemetryParser(telemetryParser),
@@ -64,6 +64,7 @@ UdpHandler::UdpHandler(ProfileManager *profileManager, UdpTelemetryParser *telem
     masterValueChangeFlag = false;
     recordingValueChangeFlag = false;
     takeFrameValueChangeFlag = false;
+    prevRecordingButtonState = false;
 
     QString baseDir = QCoreApplication::applicationDirPath();
     loadMappingsFromJson(baseDir + QDir::separator() +
@@ -128,8 +129,10 @@ void UdpHandler::onReadyRead() {
         }*/
         // qDebug() << "Data size:" << buffer.size();
         // qDebug() << "Data hex:" << buffer.toHex();
-        telemetryParser->parse(buffer, telemetryData);
-        lastOnlineTime = QDateTime::currentSecsSinceEpoch();
+        if(buffer.size() == 44){
+            telemetryParser->parse(buffer, telemetryData);
+            lastOnlineTime = QDateTime::currentSecsSinceEpoch();
+        }
     }
 }
 
@@ -196,7 +199,6 @@ QByteArray UdpHandler::packControlData()
     controlFlags |= quint64(cPosReset)      << 6;
     controlFlags |= quint64(cResetIMU)      << 7;
     controlFlags |= quint64(cUpdatePID)     << 8;
-    controlFlags |= quint64(cRecording)     << 9;
 
     //Data
     QList<float> floats = {
@@ -232,6 +234,7 @@ QByteArray UdpHandler::packControlData()
 }
 
 void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
+    if(!onlineFlag) return;
     QJsonObject controlProfile = profileManager->getProfile();
 
     //Manipulator rotate
@@ -266,8 +269,9 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     float recordingButtonState = getControlValue("recording", machineToInput, joysticsState, controlProfile, "Start");
     if(recordingButtonState){
         if (!recordingValueChangeFlag){
-            cRecording = !cRecording;
-            // EMIT
+
+            // cRecording = !cRecording;
+            emit recordingStartStop();
             recordingValueChangeFlag = true;
         }
     } else {
@@ -278,7 +282,7 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     float takeFrameButtonState = getControlValue("take_frame", machineToInput, joysticsState, controlProfile, "Stereoframe");
     if(takeFrameButtonState){
         if (!takeFrameValueChangeFlag){
-            // EMIT
+            emit takeFrame();
             qDebug() << "Took a shot";
             takeFrameValueChangeFlag = true;
         }
@@ -291,7 +295,7 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     if(masterButtonState){
         if (!masterValueChangeFlag){
             cMASTER = !cMASTER;
-            // EMIT
+            emit updateMaster();
             masterValueChangeFlag = true;
         }
     } else {
@@ -319,20 +323,20 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     if(onlineFlag)
         sendDatagram(packControlData());
 
-    // qDebug() << "Forward thrust: " << cForwardThrust;
-    // qDebug() << "Side thrust: " << cSideThrust;
-    // qDebug() << "Vertical thrust: " << cVerticalThrust;
-    // qDebug() << "Yaw thrust: " << cYawThrust;
-    // qDebug() << "Roll thrust: " << cRollThrust;
-    // qDebug() << "Pitch thrust: " << cPitchThrust;
-    // qDebug() << "Camera rotate: " << cCameraRotate;
-    // qDebug() << "Manipulator rotate: " << cManipulatorRotate;
-    // qDebug() << "Manipulator grip: " << cManipulatorGrip;
-    // qDebug() << "Power limit:" << cPowerLimit;
-    // qDebug() << "Lights: " << cLights;
-    // qDebug() << "Position reset: " << cPosReset;
-    // qDebug() << "MASTER Switch: " << cMASTER;
-    // qDebug() << "Video recording: " << cRecording;
+    qDebug() << "Forward thrust: " << cForwardThrust;
+    qDebug() << "Side thrust: " << cSideThrust;
+    qDebug() << "Vertical thrust: " << cVerticalThrust;
+    qDebug() << "Yaw thrust: " << cYawThrust;
+    qDebug() << "Roll thrust: " << cRollThrust;
+    qDebug() << "Pitch thrust: " << cPitchThrust;
+    qDebug() << "Camera rotate: " << cCameraRotate;
+    qDebug() << "Manipulator rotate: " << cManipulatorRotate;
+    qDebug() << "Manipulator grip: " << cManipulatorGrip;
+    qDebug() << "Power limit:" << cPowerLimit;
+    qDebug() << "Lights: " << cLights;
+    qDebug() << "Position reset: " << cPosReset;
+    qDebug() << "MASTER Switch: " << cMASTER;
+    qDebug() << "Video recording: " << cRecording;
 }
 
 std::pair<QString, bool> findInputByInputName(const QJsonObject& rootObj, const QString& targetInputName) {

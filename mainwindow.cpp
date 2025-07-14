@@ -120,6 +120,8 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onDatagramReceived);
     connect(udpHandler, &UdpHandler::onlineStateChanged,
             this, &MainWindow::onlineStateChanged);
+    connect(udpHandler, &UdpHandler::recordingStartStop, this, &MainWindow::startRecord);
+    connect(udpHandler, &UdpHandler::takeFrame, this, &MainWindow::on_takeStereoframeButton_clicked);
 }
 
 MainWindow::~MainWindow()
