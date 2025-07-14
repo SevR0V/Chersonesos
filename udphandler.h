@@ -9,6 +9,7 @@
 #include <QString>
 #include <QStringList>
 #include <QJsonObject>
+#include <QJsonDocument>
 #include <QFile>
 #include <QMultiMap>
 #include "gamepadworker.h"
@@ -119,4 +120,5 @@ private:
     bool masterValueChangeFlag;
     bool recordingValueChangeFlag;
     bool takeFrameValueChangeFlag;
+    bool prevRecordingButtonState;
 };
