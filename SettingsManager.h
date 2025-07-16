@@ -40,8 +40,12 @@ public:
     void setDouble(const QString& key, double value);
     void setObject(const QString& key, const QJsonObject& value);
 
-signals:
-    void settingsChanged();
+
+    QString getLastActiveProfile() const;
+    void setLastActiveProfile(const QString &profileName);  // Будет слотом
+
+public slots:
+    void updateLastActiveProfile(const QString &profileName);
 
 private:
     // Приватный конструктор
@@ -50,6 +54,8 @@ private:
 
     bool m_initialized = false;
     QJsonObject m_settings; // Основной объект для хранения настроек
+
+    const QString LAST_ACTIVE_PROFILE_KEY = "lastActiveProfile";  // Ключ для JSON
 
 };
 

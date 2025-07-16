@@ -18,7 +18,11 @@ MainWindow::MainWindow(QWidget *parent)
     worker(new GamepadWorker())
 {
     ui->setupUi(this);
+    // Инициализируем менеджер настроек один раз при запуске
+    if(!SettingsManager::instance().initialize()) {
+        qCritical() << "Failed to load settings!";
 
+    }
     worker->moveToThread(workerThread);
     workerThread->start();
     connect(workerThread, &QThread::finished, worker, &QObject::deleteLater);
