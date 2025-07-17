@@ -31,17 +31,17 @@ Camera::~Camera() {
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         delete m_cameras[i]->worker;
         delete m_cameras[i]->thread;
-        delete m_videoInfos[i]->processor;
-        delete m_videoInfos[i]->processorThread;
-        delete m_videoInfos[i]->recorder;
-        delete m_videoInfos[i]->recorderThread;
-        delete m_videoInfos[i]->streamer;
-        delete m_videoInfos[i]->streamerThread;
+        delete m_streamInfos[i]->streamer;
+        delete m_streamInfos[i]->streamerThread;
+        delete m_recordInfos[i]->recorder;
+        delete m_recordInfos[i]->recorderThread;
         delete m_cameras[i];
-        delete m_videoInfos[i];
+        delete m_streamInfos[i];
+        delete m_recordInfos[i];
     }
     m_cameras.clear();
-    m_videoInfos.clear();
+    m_streamInfos.clear();
+    m_recordInfos.clear();
     qDebug() << "Объект Camera уничтожен.";
     qDebug() << "Good Luck!";
 }
@@ -84,18 +84,18 @@ void Camera::initializeCameras() {
 
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         CameraFrameInfo* frameInfo = m_cameras[i];
-        CameraVideoFrameInfo* videoInfo = m_videoInfos[i];
+        StreamFrameInfo* streamInfo = m_streamInfos[i];
+        RecordFrameInfo* recordInfo = m_recordInfos[i];
         qDebug() << "Инициализация камеры" << frameInfo->name << "с ID" << frameInfo->id;
         getHandle(frameInfo->id, &frameInfo->handle, frameInfo->name.toStdString());
-        videoInfo->handle = frameInfo->handle;
-        videoInfo->id = frameInfo->id;
+        streamInfo->id = frameInfo->id;
+        recordInfo->id = frameInfo->id;
 
         if (!frameInfo->handle || frameInfo->id < 0 || frameInfo->id >= (int)m_deviceList.nDeviceNum || !m_deviceList.pDeviceInfo[frameInfo->id]) {
             QString errorMsg = QString("Камера %1 не инициализирована").arg(frameInfo->name);
             qDebug() << errorMsg;
             emit errorOccurred("Camera", errorMsg);
             frameInfo->handle = nullptr;
-            videoInfo->handle = nullptr;
             continue;
         }
 
@@ -115,7 +115,6 @@ void Camera::initializeCameras() {
                     emit errorOccurred("Camera", errorMsg);
                     destroyCameras(frameInfo->handle);
                     frameInfo->handle = nullptr;
-                    videoInfo->handle = nullptr;
                     continue;
                 }
                 qDebug() << "Установлен размер пакета для" << frameInfo->name << ":" << nPacketSize;
@@ -124,34 +123,27 @@ void Camera::initializeCameras() {
 
         memset(&frameInfo->frame, 0, sizeof(MV_DISPLAY_FRAME_INFO));
 
-        frameInfo->worker = new CameraWorker(frameInfo, videoInfo);
+        frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo);
         frameInfo->thread = new QThread(this);
         frameInfo->worker->moveToThread(frameInfo->thread);
         qDebug() << "Создан поток захвата для камеры" << frameInfo->name;
 
-        videoInfo->processor = new FrameProcessor(videoInfo);
-        videoInfo->processorThread = new QThread(this);
-        videoInfo->processor->moveToThread(videoInfo->processorThread);
-        videoInfo->processorThread->start();
-        qDebug() << "Создан и запущен поток обработки для камеры" << frameInfo->name;
-
-        videoInfo->recorder = new VideoRecorder(videoInfo);
-        videoInfo->recorderThread = new QThread(this);
-        videoInfo->recorder->moveToThread(videoInfo->recorderThread);
-        videoInfo->recorderThread->start();
-        videoInfo->recorderThread->setPriority(QThread::LowPriority);
+        recordInfo->recorder = new VideoRecorder(recordInfo);
+        recordInfo->recorderThread = new QThread(this);
+        recordInfo->recorder->moveToThread(recordInfo->recorderThread);
+        recordInfo->recorderThread->start();
+        recordInfo->recorderThread->setPriority(QThread::LowPriority);
         qDebug() << "Создан и запущен поток записи для камеры" << frameInfo->name;
 
-        videoInfo->streamer = new VideoStreamer(videoInfo, 0);
-        videoInfo->streamerThread = new QThread(this);
-        videoInfo->streamer->moveToThread(videoInfo->streamerThread);
-        videoInfo->streamerThread->start();
+        streamInfo->streamer = new VideoStreamer(streamInfo, 0);
+        streamInfo->streamerThread = new QThread(this);
+        streamInfo->streamer->moveToThread(streamInfo->streamerThread);
+        streamInfo->streamerThread->start();
         qDebug() << "Создан и запущен поток стриминга для камеры" << frameInfo->name;
 
         connect(frameInfo->worker, &CameraWorker::errorOccurred, this, &Camera::errorOccurred);
-        connect(videoInfo->processor, &FrameProcessor::errorOccurred, this, &Camera::errorOccurred);
-        connect(videoInfo->recorder, &VideoRecorder::errorOccurred, this, &Camera::errorOccurred);
-        connect(videoInfo->streamer, &VideoStreamer::errorOccurred, this, &Camera::errorOccurred);
+        connect(recordInfo->recorder, &VideoRecorder::errorOccurred, this, &Camera::errorOccurred);
+        connect(streamInfo->streamer, &VideoStreamer::errorOccurred, this, &Camera::errorOccurred);
     }
 
     bool anyCameraInitialized = false;
@@ -173,18 +165,18 @@ void Camera::initializeCameras() {
 void Camera::reinitializeCameras() {
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         CameraFrameInfo* frameInfo = m_cameras[i];
-        CameraVideoFrameInfo* videoInfo = m_videoInfos[i];
+        StreamFrameInfo* streamInfo = m_streamInfos[i];
+        RecordFrameInfo* recordInfo = m_recordInfos[i];
         qDebug() << "Инициализация камеры" << frameInfo->name << "с ID" << frameInfo->id;
         getHandle(frameInfo->id, &frameInfo->handle, frameInfo->name.toStdString());
-        videoInfo->handle = frameInfo->handle;
-        videoInfo->id = frameInfo->id;
+        streamInfo->id = frameInfo->id;
+        recordInfo->id = frameInfo->id;
 
         if (!frameInfo->handle || frameInfo->id < 0 || frameInfo->id >= (int)m_deviceList.nDeviceNum || !m_deviceList.pDeviceInfo[frameInfo->id]) {
             QString errorMsg = QString("Камера %1 не инициализирована").arg(frameInfo->name);
             qDebug() << errorMsg;
             emit errorOccurred("Camera", errorMsg);
             frameInfo->handle = nullptr;
-            videoInfo->handle = nullptr;
             continue;
         }
 
@@ -204,7 +196,6 @@ void Camera::reinitializeCameras() {
                     emit errorOccurred("Camera", errorMsg);
                     destroyCameras(frameInfo->handle);
                     frameInfo->handle = nullptr;
-                    videoInfo->handle = nullptr;
                     continue;
                 }
                 qDebug() << "Установлен размер пакета для" << frameInfo->name << ":" << nPacketSize;
@@ -213,34 +204,27 @@ void Camera::reinitializeCameras() {
 
         memset(&frameInfo->frame, 0, sizeof(MV_DISPLAY_FRAME_INFO));
 
-        frameInfo->worker = new CameraWorker(frameInfo, videoInfo);
+        frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo);
         frameInfo->thread = new QThread(this);
         frameInfo->worker->moveToThread(frameInfo->thread);
         qDebug() << "Создан поток захвата для камеры" << frameInfo->name;
 
-        videoInfo->processor = new FrameProcessor(videoInfo);
-        videoInfo->processorThread = new QThread(this);
-        videoInfo->processor->moveToThread(videoInfo->processorThread);
-        videoInfo->processorThread->start();
-        qDebug() << "Создан и запущен поток обработки для камеры" << frameInfo->name;
-
-        videoInfo->recorder = new VideoRecorder(videoInfo);
-        videoInfo->recorderThread = new QThread(this);
-        videoInfo->recorder->moveToThread(videoInfo->recorderThread);
-        videoInfo->recorderThread->start();
-        videoInfo->recorderThread->setPriority(QThread::LowPriority);
+        recordInfo->recorder = new VideoRecorder(recordInfo);
+        recordInfo->recorderThread = new QThread(this);
+        recordInfo->recorder->moveToThread(recordInfo->recorderThread);
+        recordInfo->recorderThread->start();
+        recordInfo->recorderThread->setPriority(QThread::LowPriority);
         qDebug() << "Создан и запущен поток записи для камеры" << frameInfo->name;
 
-        videoInfo->streamer = new VideoStreamer(videoInfo, 0);
-        videoInfo->streamerThread = new QThread(this);
-        videoInfo->streamer->moveToThread(videoInfo->streamerThread);
-        videoInfo->streamerThread->start();
+        streamInfo->streamer = new VideoStreamer(streamInfo, 0);
+        streamInfo->streamerThread = new QThread(this);
+        streamInfo->streamer->moveToThread(streamInfo->streamerThread);
+        streamInfo->streamerThread->start();
         qDebug() << "Создан и запущен поток стриминга для камеры" << frameInfo->name;
 
         connect(frameInfo->worker, &CameraWorker::errorOccurred, this, &Camera::errorOccurred);
-        connect(videoInfo->processor, &FrameProcessor::errorOccurred, this, &Camera::errorOccurred);
-        connect(videoInfo->recorder, &VideoRecorder::errorOccurred, this, &Camera::errorOccurred);
-        connect(videoInfo->streamer, &VideoStreamer::errorOccurred, this, &Camera::errorOccurred);
+        connect(recordInfo->recorder, &VideoRecorder::errorOccurred, this, &Camera::errorOccurred);
+        connect(streamInfo->streamer, &VideoStreamer::errorOccurred, this, &Camera::errorOccurred);
     }
 
     bool anyCameraInitialized = false;
@@ -269,13 +253,11 @@ void Camera::start() {
     qDebug() << "Запуск всех потоков захвата...";
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         CameraFrameInfo* frameInfo = m_cameras[i];
-        CameraVideoFrameInfo* videoInfo = m_videoInfos[i];
         if (frameInfo->worker && frameInfo->thread) {
             connect(frameInfo->thread, &QThread::started, frameInfo->worker, &CameraWorker::capture, Qt::UniqueConnection);
             connect(frameInfo->worker, &CameraWorker::frameReady, this, [this, frameInfo]() {
                 emit frameReady(frameInfo);
             }, Qt::QueuedConnection);
-            connect(frameInfo->worker, &CameraWorker::frameDataReady, videoInfo->processor, &FrameProcessor::processFrame, Qt::QueuedConnection);
             connect(frameInfo->worker, &CameraWorker::captureFailed, this, &Camera::handleCaptureFailure, Qt::QueuedConnection);
             frameInfo->thread->start();
             qDebug() << "Поток захвата для камеры" << frameInfo->name << "запущен.";
@@ -291,21 +273,21 @@ void Camera::stopAll() {
     qDebug() << "Остановка всех потоков...";
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         CameraFrameInfo* frameInfo = m_cameras[i];
-        CameraVideoFrameInfo* videoInfo = m_videoInfos[i];
+        StreamFrameInfo* streamInfo = m_streamInfos[i];
+        RecordFrameInfo* recordInfo = m_recordInfos[i];
 
         // Остановка объектов
         if (frameInfo->worker) {
             frameInfo->worker->stop();
             qDebug() << "Остановлен worker для камеры" << frameInfo->name;
         }
-        if (videoInfo->recorder) {
-            videoInfo->recorder->stopRecording();
+        if (recordInfo->recorder) {
+            recordInfo->recorder->stopRecording();
             qDebug() << "Остановлен recorder для камеры" << frameInfo->name;
-            // Отключение всех сигналов и слотов для recorder
-            disconnect(videoInfo->recorder, nullptr, nullptr, nullptr);
+            disconnect(recordInfo->recorder, nullptr, nullptr, nullptr);
         }
-        if (videoInfo->streamer) {
-            videoInfo->streamer->stopStreaming();
+        if (streamInfo->streamer) {
+            streamInfo->streamer->stopStreaming();
             qDebug() << "Остановлен streamer для камеры" << frameInfo->name;
         }
 
@@ -318,40 +300,30 @@ void Camera::stopAll() {
                 frameInfo->thread->wait();
             }
         }
-        if (videoInfo->processorThread && videoInfo->processorThread->isRunning()) {
-            videoInfo->processorThread->quit();
-            if (!videoInfo->processorThread->wait(5000)) {
-                qDebug() << "Поток обработки для" << frameInfo->name << "не завершился, принудительное завершение";
-                videoInfo->processorThread->terminate();
-                videoInfo->processorThread->wait();
-            }
-        }
-        if (videoInfo->recorderThread && videoInfo->recorderThread->isRunning()) {
-            videoInfo->recorderThread->quit();
-            if (!videoInfo->recorderThread->wait(5000)) {
+        if (recordInfo->recorderThread && recordInfo->recorderThread->isRunning()) {
+            recordInfo->recorderThread->quit();
+            if (!recordInfo->recorderThread->wait(5000)) {
                 qDebug() << "Поток записи для" << frameInfo->name << "не завершился, принудительное завершение";
-                videoInfo->recorderThread->terminate();
-                videoInfo->recorderThread->wait();
+                recordInfo->recorderThread->terminate();
+                recordInfo->recorderThread->wait();
             }
         }
-        if (videoInfo->streamerThread && videoInfo->streamerThread->isRunning()) {
-            videoInfo->streamerThread->quit();
-            if (!videoInfo->streamerThread->wait(5000)) {
+        if (streamInfo->streamerThread && streamInfo->streamerThread->isRunning()) {
+            streamInfo->streamerThread->quit();
+            if (!streamInfo->streamerThread->wait(5000)) {
                 qDebug() << "Поток стриминга для" << frameInfo->name << "не завершился, принудительное завершение";
-                videoInfo->streamerThread->terminate();
-                videoInfo->streamerThread->wait();
+                streamInfo->streamerThread->terminate();
+                streamInfo->streamerThread->wait();
             }
         }
 
         // Очистка объектов
         delete frameInfo->worker;
         frameInfo->worker = nullptr;
-        delete videoInfo->processor;
-        videoInfo->processor = nullptr;
-        delete videoInfo->recorder;
-        videoInfo->recorder = nullptr;
-        delete videoInfo->streamer;
-        videoInfo->streamer = nullptr;
+        delete recordInfo->recorder;
+        recordInfo->recorder = nullptr;
+        delete streamInfo->streamer;
+        streamInfo->streamer = nullptr;
     }
     qDebug() << "Все потоки остановлены.";
 }
@@ -362,41 +334,44 @@ void Camera::startRecording(const QString& cameraName, int recordInterval, int s
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         if (m_cameras[i]->name == cameraName) {
             cameraFound = true;
-            CameraVideoFrameInfo* videoInfo = m_videoInfos[i];
-            if (videoInfo->recorder && videoInfo->recorderThread) {
-                qDebug() << "Запуск записи для камеры" << videoInfo->name;
-                videoInfo->recorder->setRecordInterval(recordInterval);
-                videoInfo->recorder->setStoredVideoFilesLimit(storedVideoFilesLimit);
+            RecordFrameInfo* recordInfo = m_recordInfos[i];
+            CameraFrameInfo* frameInfo = m_cameras[i];
+            if (recordInfo->recorder && recordInfo->recorderThread) {
+                qDebug() << "Запуск записи для камеры" << recordInfo->name;
+                recordInfo->recorder->setRecordInterval(recordInterval);
+                recordInfo->recorder->setStoredVideoFilesLimit(storedVideoFilesLimit);
 
                 // Отключаем старые соединения
-                disconnect(videoInfo->recorder, &VideoRecorder::recordingStarted, this, nullptr);
-                disconnect(videoInfo->recorder, &VideoRecorder::recordingFinished, this, nullptr);
-                disconnect(videoInfo->recorder, &VideoRecorder::recordingFailed, this, nullptr);
+                disconnect(recordInfo->recorder, &VideoRecorder::recordingStarted, this, nullptr);
+                disconnect(recordInfo->recorder, &VideoRecorder::recordingFinished, this, nullptr);
+                disconnect(recordInfo->recorder, &VideoRecorder::recordingFailed, this, nullptr);
 
                 // Новые соединения
-                connect(videoInfo->recorderThread, &QThread::started, videoInfo->recorder, &VideoRecorder::startRecording, Qt::UniqueConnection);
-                connect(videoInfo->recorder, &VideoRecorder::recordingStarted, this,
-                        [this, frameInfo = m_cameras[i]]() {
+                connect(recordInfo->recorderThread, &QThread::started, recordInfo->recorder, &VideoRecorder::startRecording, Qt::UniqueConnection);
+                connect(recordInfo->recorder, &VideoRecorder::recordingStarted, this,
+                        [this, frameInfo]() {
                             qDebug() << "Запись начата для камеры" << frameInfo->name;
                             emit recordingStarted(frameInfo);
                         }, Qt::QueuedConnection);
-                connect(videoInfo->recorder, &VideoRecorder::recordingFinished, this,
-                        [this, frameInfo = m_cameras[i]]() {
+                connect(recordInfo->recorder, &VideoRecorder::recordingFinished, this,
+                        [this, frameInfo]() {
                             qDebug() << "Запись завершена для камеры" << frameInfo->name;
                             emit recordingFinished(frameInfo);
                         }, Qt::QueuedConnection);
-                connect(videoInfo->recorder, &VideoRecorder::recordingFailed, this,
+                connect(recordInfo->recorder, &VideoRecorder::recordingFailed, this,
                         &Camera::handleRecordingFailure, Qt::QueuedConnection);
+                // Добавлено соединение для frameReady
+                connect(frameInfo->worker, &CameraWorker::frameReady, recordInfo->recorder, &VideoRecorder::recordFrame, Qt::QueuedConnection);
 
-                if (!videoInfo->recorderThread->isRunning()) {
-                    videoInfo->recorderThread->start();
-                    qDebug() << "Поток записи для камеры" << videoInfo->name << "запущен.";
+                if (!recordInfo->recorderThread->isRunning()) {
+                    recordInfo->recorderThread->start();
+                    qDebug() << "Поток записи для камеры" << recordInfo->name << "запущен.";
                 } else {
-                    QMetaObject::invokeMethod(videoInfo->recorder, "startRecording", Qt::QueuedConnection);
-                    qDebug() << "Асинхронный вызов startRecording для камеры" << videoInfo->name;
+                    QMetaObject::invokeMethod(recordInfo->recorder, "startRecording", Qt::QueuedConnection);
+                    qDebug() << "Асинхронный вызов startRecording для камеры" << recordInfo->name;
                 }
             } else {
-                QString errorMsg = QString("Recorder или recorderThread не инициализированы для камеры %1").arg(videoInfo->name);
+                QString errorMsg = QString("Recorder или recorderThread не инициализированы для камеры %1").arg(recordInfo->name);
                 qDebug() << errorMsg;
                 emit errorOccurred("Camera", errorMsg);
             }
@@ -413,8 +388,8 @@ void Camera::startRecording(const QString& cameraName, int recordInterval, int s
 void Camera::stopRecording(const QString& cameraName) {
     qDebug() << "Попытка остановки записи для камеры" << cameraName;
     for (size_t i = 0; i < m_cameras.size(); ++i) {
-        if (m_cameras[i]->name == cameraName && m_videoInfos[i]->recorder) {
-            m_videoInfos[i]->recorder->stopRecording();
+        if (m_cameras[i]->name == cameraName && m_recordInfos[i]->recorder) {
+            m_recordInfos[i]->recorder->stopRecording();
             qDebug() << "Запись остановлена для камеры" << m_cameras[i]->name;
             break;
         }
@@ -427,34 +402,34 @@ void Camera::startStreaming(const QString& cameraName, int port) {
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         if (m_cameras[i]->name == cameraName) {
             cameraFound = true;
-            CameraVideoFrameInfo* videoInfo = m_videoInfos[i];
-            if (videoInfo->streamer && videoInfo->streamerThread) {
-                videoInfo->streamer->stopStreaming();
-                delete videoInfo->streamer;
-                videoInfo->streamer = nullptr;
+            StreamFrameInfo* streamInfo = m_streamInfos[i];
+            if (streamInfo->streamer && streamInfo->streamerThread) {
+                streamInfo->streamer->stopStreaming();
+                delete streamInfo->streamer;
+                streamInfo->streamer = nullptr;
 
-                videoInfo->streamer = new VideoStreamer(videoInfo, port);
-                videoInfo->streamer->moveToThread(videoInfo->streamerThread);
-                qDebug() << "Запуск стриминга для камеры" << videoInfo->name;
-                connect(videoInfo->streamerThread, &QThread::started, videoInfo->streamer, &VideoStreamer::startStreaming, Qt::UniqueConnection);
-                connect(videoInfo->streamer, &VideoStreamer::streamingStarted, this, [this, frameInfo = m_cameras[i]]() {
+                streamInfo->streamer = new VideoStreamer(streamInfo, port);
+                streamInfo->streamer->moveToThread(streamInfo->streamerThread);
+                qDebug() << "Запуск стриминга для камеры" << streamInfo->name;
+                connect(streamInfo->streamerThread, &QThread::started, streamInfo->streamer, &VideoStreamer::startStreaming, Qt::UniqueConnection);
+                connect(streamInfo->streamer, &VideoStreamer::streamingStarted, this, [this, frameInfo = m_cameras[i]]() {
                     qDebug() << "Стриминг начат для камеры" << frameInfo->name;
                     emit streamingStarted(frameInfo);
                 }, Qt::QueuedConnection);
-                connect(videoInfo->streamer, &VideoStreamer::streamingFinished, this, [this, frameInfo = m_cameras[i]]() {
+                connect(streamInfo->streamer, &VideoStreamer::streamingFinished, this, [this, frameInfo = m_cameras[i]]() {
                     qDebug() << "Стриминг завершен для камеры" << frameInfo->name;
                     emit streamingFinished(frameInfo);
                 }, Qt::QueuedConnection);
-                connect(videoInfo->streamer, &VideoStreamer::streamingFailed, this, &Camera::handleStreamingFailure, Qt::QueuedConnection);
-                if (!videoInfo->streamerThread->isRunning()) {
-                    videoInfo->streamerThread->start();
-                    qDebug() << "Поток стриминга для камеры" << videoInfo->name << "запущен.";
+                connect(streamInfo->streamer, &VideoStreamer::streamingFailed, this, &Camera::handleStreamingFailure, Qt::QueuedConnection);
+                if (!streamInfo->streamerThread->isRunning()) {
+                    streamInfo->streamerThread->start();
+                    qDebug() << "Поток стриминга для камеры" << streamInfo->name << "запущен.";
                 } else {
-                    QMetaObject::invokeMethod(videoInfo->streamer, "startStreaming", Qt::QueuedConnection);
-                    qDebug() << "Асинхронный вызов startStreaming для камеры" << videoInfo->name;
+                    QMetaObject::invokeMethod(streamInfo->streamer, "startStreaming", Qt::QueuedConnection);
+                    qDebug() << "Асинхронный вызов startStreaming для камеры" << streamInfo->name;
                 }
             } else {
-                QString errorMsg = QString("Streamer или streamerThread не инициализированы для камеры %1").arg(videoInfo->name);
+                QString errorMsg = QString("Streamer или streamerThread не инициализированы для камеры %1").arg(streamInfo->name);
                 qDebug() << errorMsg;
                 emit errorOccurred("Camera", errorMsg);
             }
@@ -471,8 +446,8 @@ void Camera::startStreaming(const QString& cameraName, int port) {
 void Camera::stopStreaming(const QString& cameraName) {
     qDebug() << "Попытка остановки стриминга для камеры" << cameraName;
     for (size_t i = 0; i < m_cameras.size(); ++i) {
-        if (m_cameras[i]->name == cameraName && m_videoInfos[i]->streamer) {
-            QMetaObject::invokeMethod(m_videoInfos[i]->streamer, "stopStreaming", Qt::QueuedConnection);
+        if (m_cameras[i]->name == cameraName && m_streamInfos[i]->streamer) {
+            QMetaObject::invokeMethod(m_streamInfos[i]->streamer, "stopStreaming", Qt::QueuedConnection);
             qDebug() << "Стриминг остановлен для камеры" << m_cameras[i]->name;
             break;
         }
@@ -481,12 +456,12 @@ void Camera::stopStreaming(const QString& cameraName) {
 
 void Camera::stereoShot() {
     qDebug() << "Вызван stereoShot, формат сохранения: PNG";
-    CameraVideoFrameInfo* lCameraInfo = nullptr;
-    CameraVideoFrameInfo* rCameraInfo = nullptr;
+    StreamFrameInfo* lCameraInfo = nullptr;
+    StreamFrameInfo* rCameraInfo = nullptr;
 
     for (size_t i = 0; i < m_cameras.size(); ++i) {
-        if (m_cameras[i]->name == "LCamera") lCameraInfo = m_videoInfos[i];
-        else if (m_cameras[i]->name == "RCamera") rCameraInfo = m_videoInfos[i];
+        if (m_cameras[i]->name == "LCamera") lCameraInfo = m_streamInfos[i];
+        else if (m_cameras[i]->name == "RCamera") rCameraInfo = m_streamInfos[i];
     }
 
     if (!lCameraInfo || !rCameraInfo) {
@@ -502,15 +477,17 @@ void Camera::stereoShot() {
         QMutexLocker lLocker(lCameraInfo->mutex);
         QMutexLocker rLocker(rCameraInfo->mutex);
 
-        if (!lCameraInfo->frameBuffer.empty() && !lCameraInfo->frameBuffer[0].empty()) {
-            lFrame = lCameraInfo->frameBuffer[0].clone();
+        if (!lCameraInfo->img.empty()) {
+            lFrame = lCameraInfo->img.clone();
         }
-        if (!rCameraInfo->frameBuffer.empty() && !rCameraInfo->frameBuffer[0].empty()) {
-            rFrame = rCameraInfo->frameBuffer[0].clone();
+        if (!rCameraInfo->img.empty()) {
+            rFrame = rCameraInfo->img.clone();
         }
     }
 
     if (lFrame.empty() || rFrame.empty()) {
+        cv::cvtColor(lFrame, lFrame, cv::COLOR_BGR2RGB);
+        cv::cvtColor(rFrame, rFrame, cv::COLOR_BGR2RGB);
         QString errorMsg = QString("Один или оба кадра пусты (LCamera: %1, RCamera: %2)")
                                .arg(lFrame.empty() ? "пуст" : "не пуст")
                                .arg(rFrame.empty() ? "пуст" : "не пуст");
@@ -649,7 +626,8 @@ int Camera::checkCameras() {
     qDebug() << "Текущий список имен камер:" << m_cameraNames;
 
     m_cameras.clear();
-    m_videoInfos.clear();
+    m_streamInfos.clear();
+    m_recordInfos.clear();
     for (unsigned int i = 0; i < m_deviceList.nDeviceNum; i++) {
         if (!m_deviceList.pDeviceInfo[i]) continue;
         std::stringstream cameraName;
@@ -660,13 +638,17 @@ int Camera::checkCameras() {
 
         if (m_cameraNames.contains(camName)) {
             CameraFrameInfo* frameInfo = new CameraFrameInfo();
-            CameraVideoFrameInfo* videoInfo = new CameraVideoFrameInfo();
+            StreamFrameInfo* streamInfo = new StreamFrameInfo();
+            RecordFrameInfo* recordInfo = new RecordFrameInfo();
             frameInfo->name = camName;
             frameInfo->id = i;
-            videoInfo->name = camName;
-            videoInfo->id = i;
+            streamInfo->name = camName;
+            streamInfo->id = i;
+            recordInfo->name = camName;
+            recordInfo->id = i;
             m_cameras.append(frameInfo);
-            m_videoInfos.append(videoInfo);
+            m_streamInfos.append(streamInfo);
+            m_recordInfos.append(recordInfo);
             qDebug() << "Добавлена камера" << camName << "с ID" << i;
         } else {
             qDebug() << "Камера" << camName << "пропущена, так как отсутствует в m_cameraNames";
@@ -837,9 +819,6 @@ void Camera::cleanupAllCameras() {
         destroyCameras(frameInfo->handle);
         frameInfo->handle = nullptr;
     }
-    for (CameraVideoFrameInfo* videoInfo : m_videoInfos) {
-        videoInfo->handle = nullptr;
-    }
     m_usedIPs.clear();
 
     if (m_checkCameraTimer->isActive()) {
@@ -870,14 +849,14 @@ void Camera::handleCaptureFailure(const QString& reason) {
 
     if (reason.contains("Не удалось получить буфер изображения")) {
         qDebug() << "Камера, возможно, отключена. Остановка всех операций и запуск таймера для периодической проверки.";
-        stopAll(); // Останавливаем все потоки, чтобы избежать ошибок
+        stopAll();
         if (!m_checkCameraTimer->isActive()) {
-            m_checkCameraTimer->start(10000); // Запускаем таймер с интервалом 10 секунд
+            m_checkCameraTimer->start(10000);
         }
     } else {
         qDebug() << "Неизвестная ошибка захвата, остановка всех потоков";
         stopAll();
-        emit finished(); // Для других ошибок завершаем работу
+        emit finished();
     }
 }
 

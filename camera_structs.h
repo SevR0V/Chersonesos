@@ -7,6 +7,7 @@
 #include <deque>
 #include <opencv2/opencv.hpp>
 #include "MvCameraControl.h"
+#include <filesystem>
 
 class CameraWorker;
 class FrameProcessor;
@@ -34,29 +35,42 @@ struct CameraFrameInfo {
     }
 };
 
-// Структура для хранения данных кадра и записи видео
-struct CameraVideoFrameInfo {
-    QString name;                     // Имя камеры (LCamera, RCamera, UCamera, DCamera и т.д.)
+// Структура для стриминга видео
+struct StreamFrameInfo {
+    QString name;                     // Имя камеры
     unsigned int id = -1;             // ID камеры в списке устройств
-    void* handle = nullptr;           // Дескриптор камеры
+    cv::Mat img;                      // Текущий кадр для стриминга
     QMutex* mutex = nullptr;          // Указатель на мьютекс для синхронизации
-    std::deque<cv::Mat> frameBuffer;  // Буфер для хранения 5 кадров
-    int bufferIndex = 0;              // Индекс для циклического доступа
-    FrameProcessor* processor = nullptr; // Объект для обработки кадров
-    QThread* processorThread = nullptr;  // Поток для обработки кадров
-    VideoRecorder* recorder = nullptr;   // Объект для записи видео
-    QThread* recorderThread = nullptr;   // Поток для записи видео
-    VideoStreamer* streamer = nullptr;   // Объект для стриминга видео
-    QThread* streamerThread = nullptr;   // Поток для стриминга видео
+    VideoStreamer* streamer = nullptr; // Объект для стриминга видео
+    QThread* streamerThread = nullptr; // Поток для стриминга видео
 
-    CameraVideoFrameInfo() {
+    StreamFrameInfo() {
         mutex = new QMutex();
-        frameBuffer.resize(8);
     }
 
-    ~CameraVideoFrameInfo() {
+    ~StreamFrameInfo() {
         delete mutex;
     }
 };
+
+// Структура для записи видео
+struct RecordFrameInfo {
+    QString name;                     // Имя камеры
+    unsigned int id = -1;             // ID камеры в списке устройств
+    cv::Mat img;                      // Текущий кадр для записи
+    QMutex* mutex = nullptr;          // Указатель на мьютекс для синхронизации
+    VideoRecorder* recorder = nullptr; // Объект для записи видео
+    QThread* recorderThread = nullptr; // Поток для записи видео
+    std::filesystem::path sessionDirectory; // Путь к сессионной папке
+
+    RecordFrameInfo() {
+        mutex = new QMutex();
+    }
+
+    ~RecordFrameInfo() {
+        delete mutex;
+    }
+};
+
 
 #endif // CAMERA_STRUCTS_H

@@ -251,9 +251,9 @@ void MainWindow::startRecord()
     setRecordButtonState(ui->startRecordButton, isRecording, isPanelHidden);
 
     if (isRecording) {
-        emit startRecordingSignal("LCamera", 30, 0);
+        emit startRecordingSignal("LCamera", 120, 0);
         if (isStereoRecording) {
-            emit startRecordingSignal("RCamera", 30, 0);
+            emit startRecordingSignal("RCamera", 120, 0);
         }
     } else {
         emit stopRecordingSignal("LCamera");

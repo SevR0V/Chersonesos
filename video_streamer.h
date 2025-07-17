@@ -13,7 +13,7 @@
 class VideoStreamer : public QObject {
     Q_OBJECT
 public:
-    explicit VideoStreamer(CameraVideoFrameInfo* videoInfo, int port, QObject* parent = nullptr);
+    explicit VideoStreamer(StreamFrameInfo* streamInfo, int port, QObject* parent = nullptr);
     ~VideoStreamer();
 
 public slots:
@@ -35,7 +35,7 @@ signals:
     void errorOccurred(const QString& component, const QString& message);
 
 private:
-    CameraVideoFrameInfo* m_videoInfo;
+    StreamFrameInfo* m_streamInfo;
     int m_port;
     QTcpServer* m_server;
     QSet<QTcpSocket*> m_clients;

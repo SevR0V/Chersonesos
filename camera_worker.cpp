@@ -1,7 +1,7 @@
 #include "camera_worker.h"
 
-CameraWorker::CameraWorker(CameraFrameInfo* frameInfo, CameraVideoFrameInfo* videoInfo, QObject* parent)
-    : QObject(parent), m_frameInfo(frameInfo), m_videoInfo(videoInfo), m_isRunning(true) {
+CameraWorker::CameraWorker(CameraFrameInfo* frameInfo, StreamFrameInfo* streamInfo, RecordFrameInfo* recordInfo, QObject* parent)
+    : QObject(parent), m_frameInfo(frameInfo), m_streamInfo(streamInfo), m_recordInfo(recordInfo), m_isRunning(true) {
     qDebug() << "Создан CameraWorker для камеры" << m_frameInfo->name;
 }
 
@@ -61,22 +61,25 @@ void CameraWorker::capture() {
                 m_frameInfo->frame.nDataLen = stOutFrame.stFrameInfo.nWidth * stOutFrame.stFrameInfo.nHeight * 3;
                 m_frameInfo->frame.enRenderMode = 0;
 
-                //if (m_frameInfo->labelWinId != 0) {
-                    //nRet = MV_CC_DisplayOneFrame(m_frameInfo->handle, &m_frameInfo->frame);
-                //}
-
                 cv::Mat bayerMat(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC1, stOutFrame.pBufAddr);
+                cv::Mat rawFrame(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC3);
+                cv::cvtColor(bayerMat, rawFrame, cv::COLOR_BayerRG2BGR);
+                m_frameInfo->img = QImage(rawFrame.data, rawFrame.cols, rawFrame.rows, rawFrame.step, QImage::Format_RGB888).copy();
 
-                cv::cvtColor(bayerMat, bayerMat, cv::COLOR_BayerRG2BGR);
-
-                m_frameInfo->img = QImage(bayerMat.data, bayerMat.cols, bayerMat.rows, bayerMat.step, QImage::Format_RGB888).copy();
-
+                {
+                    QMutexLocker streamLocker(m_streamInfo->mutex);
+                    m_streamInfo->img = rawFrame.clone();
+                }
+                {
+                    QMutexLocker recordLocker(m_recordInfo->mutex);
+                    m_recordInfo->img = rawFrame.clone();
+                }
             }
 
             if (stOutFrame.pBufAddr && stOutFrame.stFrameInfo.nWidth > 0 && stOutFrame.stFrameInfo.nHeight > 0) {
-                QByteArray frameData(reinterpret_cast<const char*>(stOutFrame.pBufAddr), stOutFrame.stFrameInfo.nFrameLen);
+                //QByteArray frameData(reinterpret_cast<const char*>(stOutFrame.pBufAddr), stOutFrame.stFrameInfo.nFrameLen);
                 emit frameReady();
-                emit frameDataReady(frameData, stOutFrame.stFrameInfo.nWidth, stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.enPixelType);
+                //emit frameDataReady(frameData, stOutFrame.stFrameInfo.nWidth, stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.enPixelType);
             } else {
                 QString errorMsg = QString("Получены некорректные данные кадра для камеры %1: pData=%2, ширина=%3, высота=%4")
                                        .arg(m_frameInfo->name)

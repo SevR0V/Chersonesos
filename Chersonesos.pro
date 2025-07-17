@@ -20,7 +20,6 @@ SOURCES += \
     profilemanager.cpp \
     camera.cpp \
     camera_worker.cpp \
-    frame_processor.cpp \
     logger.cpp \
     main.cpp \
     settingsdialog.cpp \
@@ -42,7 +41,6 @@ HEADERS += \
     camera.h \
     camera_structs.h \
     camera_worker.h \
-    frame_processor.h \
     logger.h \
     settingsdialog.h \
     udphandler.h \
