@@ -16,10 +16,10 @@ SOURCES += \
     customlineedit.cpp \
     gamepadworker.cpp \
     mainwindow.cpp \
+    overlaywidget.cpp \
     profilemanager.cpp \
     camera.cpp \
     camera_worker.cpp \
-    frame_processor.cpp \
     logger.cpp \
     main.cpp \
     settingsdialog.cpp \
@@ -37,11 +37,11 @@ HEADERS += \
     iplineedit.h \
     lineeditutils.h \
     mainwindow.h \
+    overlaywidget.h \
     profilemanager.h \
     camera.h \
     camera_structs.h \
     camera_worker.h \
-    frame_processor.h \
     logger.h \
     settingsdialog.h \
     udphandler.h \
