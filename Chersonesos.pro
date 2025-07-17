@@ -16,7 +16,6 @@ SOURCES += \
     customlineedit.cpp \
     gamepadworker.cpp \
     mainwindow.cpp \
-    overlaywidget.cpp \
     profilemanager.cpp \
     camera.cpp \
     camera_worker.cpp \
@@ -27,7 +26,8 @@ SOURCES += \
     udptelemetryparser.cpp \
     video_recorder.cpp \
     video_streamer.cpp \
-    settingsdialog.cpp
+    settingsdialog.cpp \
+    overlaywidget.cpp
 
 HEADERS += \
     SettingsManager.h \
@@ -37,7 +37,6 @@ HEADERS += \
     iplineedit.h \
     lineeditutils.h \
     mainwindow.h \
-    overlaywidget.h \
     profilemanager.h \
     camera.h \
     camera_structs.h \
@@ -48,7 +47,8 @@ HEADERS += \
     udptelemetryparser.h \
     video_recorder.h \
     video_streamer.h \
-    settingsdialog.h
+    settingsdialog.h \
+    overlaywidget.h
 
 FORMS += \
     controlwindow.ui \
