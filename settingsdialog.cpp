@@ -143,16 +143,16 @@ void SettingsDialog::on_pushButton_UpdatePID_clicked()
 
 void SettingsDialog::on_pushButton_reset_corn_clicked()
 {
-    ui->doubleSpinBox_kP_Roll->setValue(0);
-    ui->doubleSpinBox_kI_Roll->setValue(0);
-    ui->doubleSpinBox_kD_Roll->setValue(0);
-    ui->doubleSpinBox_kP_Pitch->setValue(0);
-    ui->doubleSpinBox_kI_Pitch->setValue(0);
-    ui->doubleSpinBox_kD_Pitch->setValue(0);
-    ui->doubleSpinBox_kP_Yaw->setValue(0);
-    ui->doubleSpinBox_kI_Yaw->setValue(0);
-    ui->doubleSpinBox_kD_Yaw->setValue(0);
-    SaveSetting();
+    // ui->doubleSpinBox_kP_Roll->setValue(0);
+    // ui->doubleSpinBox_kI_Roll->setValue(0);
+    // ui->doubleSpinBox_kD_Roll->setValue(0);
+    // ui->doubleSpinBox_kP_Pitch->setValue(0);
+    // ui->doubleSpinBox_kI_Pitch->setValue(0);
+    // ui->doubleSpinBox_kD_Pitch->setValue(0);
+    // ui->doubleSpinBox_kP_Yaw->setValue(0);
+    // ui->doubleSpinBox_kI_Yaw->setValue(0);
+    // ui->doubleSpinBox_kD_Yaw->setValue(0);
+    // SaveSetting();
     emit settingsChangedAngle();
 }
 
