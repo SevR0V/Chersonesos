@@ -367,16 +367,27 @@ void Camera::startRecording(const QString& cameraName, int recordInterval, int s
                 qDebug() << "Запуск записи для камеры" << videoInfo->name;
                 videoInfo->recorder->setRecordInterval(recordInterval);
                 videoInfo->recorder->setStoredVideoFilesLimit(storedVideoFilesLimit);
+
+                // Отключаем старые соединения
+                disconnect(videoInfo->recorder, &VideoRecorder::recordingStarted, this, nullptr);
+                disconnect(videoInfo->recorder, &VideoRecorder::recordingFinished, this, nullptr);
+                disconnect(videoInfo->recorder, &VideoRecorder::recordingFailed, this, nullptr);
+
+                // Новые соединения
                 connect(videoInfo->recorderThread, &QThread::started, videoInfo->recorder, &VideoRecorder::startRecording, Qt::UniqueConnection);
-                connect(videoInfo->recorder, &VideoRecorder::recordingStarted, this, [this, frameInfo = m_cameras[i]]() {
-                    qDebug() << "Запись начата для камеры" << frameInfo->name;
-                    emit recordingStarted(frameInfo);
-                }, Qt::QueuedConnection);
-                connect(videoInfo->recorder, &VideoRecorder::recordingFinished, this, [this, frameInfo = m_cameras[i]]() {
-                    qDebug() << "Запись завершена для камеры" << frameInfo->name;
-                    emit recordingFinished(frameInfo);
-                }, Qt::QueuedConnection);
-                connect(videoInfo->recorder, &VideoRecorder::recordingFailed, this, &Camera::handleRecordingFailure, Qt::QueuedConnection);
+                connect(videoInfo->recorder, &VideoRecorder::recordingStarted, this,
+                        [this, frameInfo = m_cameras[i]]() {
+                            qDebug() << "Запись начата для камеры" << frameInfo->name;
+                            emit recordingStarted(frameInfo);
+                        }, Qt::QueuedConnection);
+                connect(videoInfo->recorder, &VideoRecorder::recordingFinished, this,
+                        [this, frameInfo = m_cameras[i]]() {
+                            qDebug() << "Запись завершена для камеры" << frameInfo->name;
+                            emit recordingFinished(frameInfo);
+                        }, Qt::QueuedConnection);
+                connect(videoInfo->recorder, &VideoRecorder::recordingFailed, this,
+                        &Camera::handleRecordingFailure, Qt::QueuedConnection);
+
                 if (!videoInfo->recorderThread->isRunning()) {
                     videoInfo->recorderThread->start();
                     qDebug() << "Поток записи для камеры" << videoInfo->name << "запущен.";

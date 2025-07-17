@@ -16,6 +16,7 @@ SOURCES += \
     customlineedit.cpp \
     gamepadworker.cpp \
     mainwindow.cpp \
+    overlaywidget.cpp \
     profilemanager.cpp \
     camera.cpp \
     camera_worker.cpp \
@@ -36,6 +37,7 @@ HEADERS += \
     iplineedit.h \
     lineeditutils.h \
     mainwindow.h \
+    overlaywidget.h \
     profilemanager.h \
     camera.h \
     camera_structs.h \

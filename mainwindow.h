@@ -17,6 +17,12 @@
 #include "settingsdialog.h"
 #include "udphandler.h"
 #include "gamepadworker.h"
+#include <winspool.h>
+#include <QResizeEvent>
+#include "SettingsManager.h"
+#include "overlaywidget.h"
+
+class OverlayWidget;
 
 namespace Ui {
 class MainWindow;
@@ -48,6 +54,7 @@ private slots:
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
 
 private:
     Ui::MainWindow *ui;
@@ -69,6 +76,7 @@ private:
     UdpHandler *udpHandler;
     QThread *workerThread;
     GamepadWorker *worker;
+    OverlayWidget* m_overlay;
 };
 
 #endif // MAINWINDOW_H

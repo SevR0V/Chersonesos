@@ -1,12 +1,5 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include <QVBoxLayout>
-#include <QMessageBox>
-#include <QDebug>
-#include <QTimer>
-#include <winspool.h>
-#include <QResizeEvent>
-#include "SettingsManager.h"
 
 void setMasterButtonState(QPushButton *button, const bool masterState, const bool isPanelHidden);
 void setRecordButtonState(QPushButton *button, const bool isRecording, const bool isPanelHidden);
@@ -16,7 +9,8 @@ MainWindow::MainWindow(QWidget *parent)
     udpThread(new QThread(this)),
     udpHandler(new UdpHandler()),
     workerThread(new QThread(this)),
-    worker(new GamepadWorker())
+    worker(new GamepadWorker()),
+    m_overlay(nullptr)
 {
     ui->setupUi(this);
 
@@ -69,6 +63,11 @@ MainWindow::MainWindow(QWidget *parent)
     m_label->setScaledContents(true);
     m_label->setAlignment(Qt::AlignCenter);
     m_cameraLayout->addWidget(m_label);
+
+    // Создание и настройка оверлея
+    m_overlay = new OverlayWidget(m_label);
+    m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
+    m_overlay->show();
 
     const QList<CameraFrameInfo*>& cameras = m_camera->getCameras();
     for (CameraFrameInfo* cam : cameras) {
@@ -126,6 +125,7 @@ MainWindow::~MainWindow()
         m_camera = nullptr;
     }
 
+    delete m_overlay;
     delete ui;
     workerThread->quit();
     workerThread->wait();
@@ -138,6 +138,8 @@ void MainWindow::processFrame(CameraFrameInfo* camera)
     QMutexLocker lock(camera->mutex);
     if (camera->name == "LCamera") {
         m_label->setPixmap(QPixmap::fromImage(camera->img));
+        // Обновляем геометрию оверлея при каждом обновлении изображения
+        m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
     }
 }
 
@@ -249,9 +251,9 @@ void MainWindow::startRecord()
     setRecordButtonState(ui->startRecordButton, isRecording, isPanelHidden);
 
     if (isRecording) {
-        emit startRecordingSignal("LCamera", 120, 0);
+        emit startRecordingSignal("LCamera", 30, 0);
         if (isStereoRecording) {
-            emit startRecordingSignal("RCamera", 120, 0);
+            emit startRecordingSignal("RCamera", 30, 0);
         }
     } else {
         emit stopRecordingSignal("LCamera");
@@ -284,6 +286,19 @@ void MainWindow::onResize()
 {
     if (m_cameraLayout) {
         m_cameraLayout->update();
+        // Обновляем геометрию оверлея при изменении размера
+        if (m_overlay && m_label) {
+            m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
+        }
+    }
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+    // Обновляем геометрию оверлея при изменении размера окна
+    if (m_overlay && m_label) {
+        m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
     }
 }
 
