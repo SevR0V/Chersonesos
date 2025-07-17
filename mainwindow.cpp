@@ -21,8 +21,8 @@ MainWindow::MainWindow(QWidget *parent)
     // Инициализируем менеджер настроек один раз при запуске
     if(!SettingsManager::instance().initialize()) {
         qCritical() << "Failed to load settings!";
-
     }
+
     worker->moveToThread(workerThread);
     workerThread->start();
     connect(workerThread, &QThread::finished, worker, &QObject::deleteLater);
@@ -117,6 +117,13 @@ MainWindow::MainWindow(QWidget *parent)
     UdpTelemetryParser *telemetryParser = new UdpTelemetryParser();
 
     UdpHandler *udpHandler = new UdpHandler(profileManager, telemetryParser, worker);
+
+    udpHandler->settingsChanged();
+
+    connect(settingsDialog, &SettingsDialog::settingsChanged, udpHandler, &UdpHandler::settingsChanged);
+    connect(settingsDialog, &SettingsDialog::settingsChangedPID, this, &MainWindow::updatePID);
+    connect(settingsDialog, &SettingsDialog::settingsChangedAngle, this, &MainWindow::resetAngle);
+
     udpHandler->moveToThread(udpThread);
     udpThread->start();
     connect(udpThread, &QThread::finished, udpHandler, &QObject::deleteLater);
@@ -126,6 +133,12 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onlineStateChanged);
     connect(udpHandler, &UdpHandler::recordingStartStop, this, &MainWindow::startRecord);
     connect(udpHandler, &UdpHandler::takeFrame, this, &MainWindow::on_takeStereoframeButton_clicked);
+
+    SettingsManager &settingsManager = SettingsManager::instance();
+
+    controlsWindow->loadProfile(settingsManager.getLastActiveProfile());
+
+    connect(controlsWindow->profileManager, &ProfileManager::profileNameChange, this, &MainWindow::activeProfileChanged);
 }
 
 MainWindow::~MainWindow()
@@ -307,6 +320,28 @@ void MainWindow::onResize()
     if (m_cameraLayout) {
         m_cameraLayout->update();
     }
+}
+
+void MainWindow::activeProfileChanged(){
+    SettingsManager &settingsManager = SettingsManager::instance();
+    // if (settingsManager){
+    //     return;
+    // }
+    QJsonObject profile = profileManager->getProfile();
+    QString profileName = profile["profileName"].toString();
+    settingsManager.updateLastActiveProfile(profileName);
+    settingsDialog->SaveSetting();
+}
+
+void MainWindow::settingsChanged(){
+
+}
+
+void MainWindow::updatePID(){
+
+}
+void MainWindow::resetAngle(){
+
 }
 
 void MainWindow::onJoystickUpdate(const DualJoystickState &state)

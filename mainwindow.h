@@ -47,6 +47,10 @@ private slots:
     void onDatagramReceived(const QByteArray &data, const QHostAddress &sender, quint16 port);
     void onJoystickUpdate(const DualJoystickState &state);
     void onlineStateChanged(const bool &onlineState);
+    void settingsChanged();
+    void updatePID();
+    void resetAngle();
+    void activeProfileChanged();
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;

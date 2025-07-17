@@ -12,10 +12,11 @@
 #include <QJsonDocument>
 #include <QFile>
 #include <QMultiMap>
+#include <QTimer>
 #include "gamepadworker.h"
 #include "profilemanager.h"
 #include "udptelemetryparser.h"
-#include <QTimer>
+#include "SettingsManager.h"
 
 class UdpHandler : public QObject {
     Q_OBJECT
@@ -38,6 +39,7 @@ public:
     bool connectToROV(const QHostAddress &address, quint16 port);
     bool getOnlineStatus;
 
+
 signals:
     void datagramReceived(const QByteArray &data,
                           const QHostAddress &sender,
@@ -46,6 +48,9 @@ signals:
     void takeFrame();
     void updateMaster();
     void onlineStateChanged(const bool &onlineState);
+
+public slots:
+    void settingsChanged();
 
 private slots:
     void onReadyRead();
@@ -81,6 +86,8 @@ private:
     QByteArray packControlData();
     QTimer *onlineTimer;
     qint64 lastOnlineTime;
+
+    SettingsManager *settingsManager = nullptr;
 
     bool onlineFlag;
     float cForwardThrust;

@@ -1,11 +1,14 @@
 #ifndef PROFILEMANAGER_H
 #define PROFILEMANAGER_H
 
+#include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QJsonObject>
 
-class ProfileManager {
+class ProfileManager : public QObject{
+    Q_OBJECT
+
 public:
     ProfileManager() = default;
 
@@ -26,9 +29,9 @@ public:
     QStringList listAvailableProfiles();
     QJsonObject getProfile() const;
 
+signals:
+    void profileNameChange();
 
-  //  bool loadSetting(const QString& filePath,QJsonObject profile);
-  //  bool saveSetting(QJsonObject profile);
 private:
     QJsonObject profileObject;
 };

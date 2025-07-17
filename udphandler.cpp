@@ -36,7 +36,7 @@ UdpHandler::UdpHandler(ProfileManager *profileManager, UdpTelemetryParser *telem
     cCameraRotate = 0;
     cManipulatorRotate = 0;
     cManipulatorGrip = 0;
-    cPowerLimit = 0;
+    cPowerLimit = 1; // 0..1
     RollKP = 0;
     RollKI = 0;
     RollKD = 0;
@@ -246,6 +246,7 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
 
     //Power limit
     cPowerLimit = getControlValue("power_limit", machineToInput, joysticsState, controlProfile);
+    cPowerLimit = 1;
 
     //Camera rotate
     cCameraRotate = getControlValue("camera_rotate", machineToInput, joysticsState, controlProfile, "Up", "Down");
@@ -528,6 +529,7 @@ float UdpHandler::getControlValue(QString action,
     value = value == 0 ? ((primaryIncBut - primaryDecBut) * 100) : value;
     value = secondaryAxis == 0 ? value : secondaryAxis;
     value = primaryAxis == 0 ? value : primaryAxis;
+    value = value/100.0f;
     return value;
 }
 
@@ -539,5 +541,13 @@ bool UdpHandler::connectToROV(const QHostAddress &address, quint16 port){
     packet.append(char(0xFF));
     sendDatagram(packet);
     return true;
+}
+
+void UdpHandler::settingsChanged(){
+    SettingsManager &settingsManager = SettingsManager::instance();
+    QString ip = settingsManager.getString("ip");
+    quint16 port = settingsManager.getInt("portEdit");
+    remoteAddress.setAddress(ip);
+    setRemoteEndpoint(remoteAddress, port);
 }
 

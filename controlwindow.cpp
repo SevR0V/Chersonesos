@@ -88,16 +88,16 @@ void ControlWindow::replaceLineEdits(QWidget *widget) {
 
 void ControlWindow::onLineEditLeftClicked(QString name) {
     if(! isJoyListenerFinished) return;
-    qDebug() << "Левая кнопка нажата на LineEdit с именем:" << name;
+    // qDebug() << "Левая кнопка нажата на LineEdit с именем:" << name;
     if (name.toLower().contains("primary") && currentPrimaryDeviceName.toLower() == "no device") return;
     if (name.toLower().contains("secondary") && currentSecondaryDeviceName.toLower() == "no device") return;
-    qDebug() << currentPrimaryDeviceName.toLower();
+    // qDebug() << currentPrimaryDeviceName.toLower();
     startProgressCountdown();
     activeInputName = name;
 }
 
 void ControlWindow::onLineEditRightClicked(QString name) {
-    qDebug() << "Правая кнопка нажата на LineEdit с именем:" << name;
+    // qDebug() << "Правая кнопка нажата на LineEdit с именем:" << name;
     if(isJoyListenerFinished){
         CustomLineEdit* activeLineEdit = this->findChild<CustomLineEdit*>(name);
         if(! activeLineEdit) return;
@@ -219,18 +219,22 @@ void ControlWindow::profileActionDetected(QString inputType, int inputIdx)
     if(isJoyListenerFinished) return;
     CustomLineEdit* activeLineEdit = this->findChild<CustomLineEdit*>(ControlWindow::activeInputName);
     if(! activeLineEdit) return;
-    qDebug() << activeLineEdit;
+    // qDebug() << activeLineEdit;
     QString input = inputType + " " + QString::number(inputIdx);
     activeLineEdit->setText(input);
     bool isSecondary = activeInputName.contains("secondary", Qt::CaseInsensitive);
     ControlWindow::profileManager->addInput(activeInputName, input, isSecondary);
-    qDebug() << activeInputName << " " << input << " " << isSecondary << false;
+    // qDebug() << activeInputName << " " << input << " " << isSecondary << false;
     stopProgressCountdown();
 }
 
 void ControlWindow::onLoadProfileBtnClick()
 {
     QString profileName = ui->profileList->currentText();
+    loadProfile(profileName);
+}
+
+void ControlWindow::loadProfile(const QString &profileName){
     if (profileManager->loadFromProfileName(profileName)){
         qDebug() << "profile " << profileName << " loaded";
     }
@@ -281,7 +285,7 @@ void ControlWindow::updateProfileOnGUI()
         QString name = obj["inputName"].toString();
         QString input = obj["input"].toString();
         bool inverted = obj["inversion"].toBool();
-        qDebug() << name;
+        // qDebug() << name;
         CustomLineEdit* activeLineEdit = this->findChild<CustomLineEdit*>(name);
         QCheckBox* activeCheckBox = this->findChild<QCheckBox*>(name+"Inv");
         if(activeLineEdit){

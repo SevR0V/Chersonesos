@@ -89,7 +89,7 @@ void SettingsDialog::loadSettings()
     ui->doubleSpinBox_kP_Depth->setValue(SettingsManager::instance().getDouble("DepthkP"));
     ui->doubleSpinBox_kI_Depth->setValue(SettingsManager::instance().getDouble("DepthkI"));
     ui->doubleSpinBox_kD_Depth->setValue(SettingsManager::instance().getDouble("DepthkD"));
-
+    emit settingsChanged();
    // qDebug() << ui->comboBoxCam->currentIndex();
 }
 void SettingsDialog::SaveSetting()
@@ -122,7 +122,7 @@ void SettingsDialog::SaveSetting()
     SettingsManager::instance().setDouble("DepthkD", ui->doubleSpinBox_kD_Depth->value());
 
     SettingsManager::instance().saveToFile("settings.json");
-
+    emit settingsChanged();
 
 }
 void SettingsDialog::onButtonClicked(QAbstractButton *button) {
@@ -130,7 +130,7 @@ void SettingsDialog::onButtonClicked(QAbstractButton *button) {
     if (button == ui->buttonBox->button(QDialogButtonBox::Ok)) {
        // qDebug() << "Нажата OK";
         SaveSetting();
-        emit settingsChanged();
+        // emit settingsChanged();
     }
 }
 

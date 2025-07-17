@@ -22,6 +22,7 @@ public:
     explicit SettingsDialog(QWidget *parent = nullptr);
     ~SettingsDialog();
     ProfileManager *profileManager;
+    void SaveSetting();
 
 signals:
     void settingsChanged();
@@ -43,7 +44,6 @@ private:
     void setupIpLineEdit();
     void loadSettings();  // Метод для загрузки настроек
     void setupUi(); // Объявление без параметров
-    void SaveSetting();
 
 QVector<QLineEdit*> m_lineEdits;
 
