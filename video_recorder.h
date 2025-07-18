@@ -6,14 +6,12 @@
 #include <QThread>
 #include <QElapsedTimer>
 #include <QMutexLocker>
-#include <QDebug>
 #include <filesystem>
 #include <sstream>
 #include <ctime>
 #include <iomanip>
 #include <vector>
 #include <algorithm>
-#include <QElapsedTimer>
 #include <opencv2/opencv.hpp>
 #include "camera_structs.h"
 
@@ -40,11 +38,12 @@ private:
     void startNewSegment();
     std::string sanitizeFileName(const std::string& input);
     std::string generateFileName(const std::string& prefix, const std::string& extension);
-    std::string generateSessionDirectoryName();
+    std::string generateDateDirectoryName();
+    std::string generateTimeDirectoryName();
     RecordFrameInfo* m_recordInfo;
-    cv::VideoWriter videoWriter;  // Добавлено
-    QElapsedTimer m_timer;        // Добавлено
-    std::string fileName;         // Добавлено
+    cv::VideoWriter videoWriter;
+    QElapsedTimer m_timer;
+    std::string fileName;
     bool m_isRecording;
     int m_recordInterval;
     int m_storedVideoFilesLimit;

@@ -389,7 +389,16 @@ void Camera::stopRecording(const QString& cameraName) {
     qDebug() << "Попытка остановки записи для камеры" << cameraName;
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         if (m_cameras[i]->name == cameraName && m_recordInfos[i]->recorder) {
+            disconnect(m_cameras[i]->worker, &CameraWorker::frameReady, m_recordInfos[i]->recorder, &VideoRecorder::recordFrame);
             m_recordInfos[i]->recorder->stopRecording();
+            if (m_recordInfos[i]->recorderThread && m_recordInfos[i]->recorderThread->isRunning()) {
+                m_recordInfos[i]->recorderThread->quit();
+                if (!m_recordInfos[i]->recorderThread->wait(5000)) {
+                    qDebug() << "Поток записи для" << m_cameras[i]->name << "не завершился, принудительное завершение";
+                    m_recordInfos[i]->recorderThread->terminate();
+                    m_recordInfos[i]->recorderThread->wait();
+                }
+            }
             qDebug() << "Запись остановлена для камеры" << m_cameras[i]->name;
             break;
         }
