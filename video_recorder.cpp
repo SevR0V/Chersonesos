@@ -1,6 +1,5 @@
 #include "video_recorder.h"
 
-
 VideoRecorder::VideoRecorder(RecordFrameInfo* recordInfo, QObject* parent)
     : QObject(parent), m_recordInfo(recordInfo), m_isRecording(false), m_recordInterval(30), m_storedVideoFilesLimit(10) {}
 
@@ -23,7 +22,7 @@ void VideoRecorder::manageStoredFiles() {
 
     try {
         std::vector<std::filesystem::directory_entry> videoFiles;
-        for (const auto& entry : std::filesystem::directory_iterator(m_sessionDirectory)) {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(m_sessionDirectory)) {
             if (entry.is_regular_file() && entry.path().extension() == ".avi") {
                 videoFiles.push_back(entry);
             }
@@ -97,12 +96,45 @@ void VideoRecorder::startRecording() {
         return;
     }
 
-    std::string sessionDirName = generateSessionDirectoryName();
-    m_sessionDirectory = pathToVideoDirectory / sessionDirName;
+    // Создание папки с датой
+    std::string dateDirName = generateDateDirectoryName();
+    std::filesystem::path dateDirectory = pathToVideoDirectory / dateDirName;
+    try {
+        if (!std::filesystem::exists(dateDirectory)) {
+            if (!std::filesystem::create_directory(dateDirectory)) {
+                QString errorMsg = QString("Не удалось создать директорию даты %1 для камеры %2")
+                                       .arg(QString::fromStdString(dateDirectory.string())).arg(m_recordInfo->name);
+                qDebug() << errorMsg;
+                m_isRecording = false;
+                emit errorOccurred("VideoRecorder", errorMsg);
+                emit recordingFailed(errorMsg);
+                return;
+            }
+        } else if (!std::filesystem::is_directory(dateDirectory)) {
+            QString errorMsg = QString("Путь %1 существует, но не является директорией для камеры %2")
+                                   .arg(QString::fromStdString(dateDirectory.string())).arg(m_recordInfo->name);
+            qDebug() << errorMsg;
+            m_isRecording = false;
+            emit errorOccurred("VideoRecorder", errorMsg);
+            emit recordingFailed(errorMsg);
+            return;
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        QString errorMsg = QString("Ошибка файловой системы при создании директории даты для камеры %1: %2")
+                               .arg(m_recordInfo->name).arg(e.what());
+        m_isRecording = false;
+        emit errorOccurred("VideoRecorder", errorMsg);
+        emit recordingFailed(errorMsg);
+        return;
+    }
+
+    // Создание папки с временем
+    std::string timeDirName = generateTimeDirectoryName();
+    m_sessionDirectory = dateDirectory / timeDirName;
     try {
         if (!std::filesystem::exists(m_sessionDirectory)) {
             if (!std::filesystem::create_directory(m_sessionDirectory)) {
-                QString errorMsg = QString("Не удалось создать сессионную директорию %1 для камеры %2")
+                QString errorMsg = QString("Не удалось создать директорию времени %1 для камеры %2")
                                        .arg(QString::fromStdString(m_sessionDirectory.string())).arg(m_recordInfo->name);
                 qDebug() << errorMsg;
                 m_isRecording = false;
@@ -124,7 +156,7 @@ void VideoRecorder::startRecording() {
             }
             std::filesystem::perms perms = std::filesystem::status(m_sessionDirectory).permissions();
             if ((perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
-                QString errorMsg = QString("Нет прав на запись в сессионную директорию %1 для камеры %2")
+                QString errorMsg = QString("Нет прав на запись в директорию времени %1 для камеры %2")
                                        .arg(QString::fromStdString(m_sessionDirectory.string())).arg(m_recordInfo->name);
                 qDebug() << errorMsg;
                 m_isRecording = false;
@@ -135,7 +167,7 @@ void VideoRecorder::startRecording() {
             }
         }
     } catch (const std::filesystem::filesystem_error& e) {
-        QString errorMsg = QString("Ошибка файловой системы при создании сессионной директории для камеры %1: %2")
+        QString errorMsg = QString("Ошибка файловой системы при создании директории времени для камеры %1: %2")
                                .arg(m_recordInfo->name).arg(e.what());
         m_isRecording = false;
         if (videoWriter.isOpened()) videoWriter.release();
@@ -268,7 +300,20 @@ std::string VideoRecorder::generateFileName(const std::string& prefix, const std
     return ss.str();
 }
 
-std::string VideoRecorder::generateSessionDirectoryName() {
+std::string VideoRecorder::generateDateDirectoryName() {
+    auto now = std::time(nullptr);
+    std::tm timeInfo;
+    std::stringstream ss;
+#ifdef _MSC_VER
+    localtime_s(&timeInfo, &now);
+#else
+    timeInfo = *std::localtime(&now);
+#endif
+    ss << std::put_time(&timeInfo, "%d%m%Y");
+    return ss.str();
+}
+
+std::string VideoRecorder::generateTimeDirectoryName() {
     auto now = std::time(nullptr);
     std::tm timeInfo;
     std::stringstream ss;
@@ -278,6 +323,6 @@ std::string VideoRecorder::generateSessionDirectoryName() {
     timeInfo = *std::localtime(&now);
 #endif
     std::string cameraName = sanitizeFileName(m_recordInfo->name.toStdString());
-    ss << cameraName << "_" << std::put_time(&timeInfo, "%Y%m%d_%H%M%S");
+    ss << cameraName << "_" << std::put_time(&timeInfo, "%H%M%S");
     return ss.str();
 }
