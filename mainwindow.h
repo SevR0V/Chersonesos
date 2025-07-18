@@ -88,6 +88,8 @@ private:
     QThread *workerThread;
     GamepadWorker *worker;
     OverlayWidget* m_overlay;
+
+    QTimer *updateOverlayTimer;
 };
 
 #endif // MAINWINDOW_H

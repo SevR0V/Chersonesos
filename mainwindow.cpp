@@ -138,6 +138,10 @@ MainWindow::MainWindow(QWidget *parent)
     controlsWindow->loadProfile(settingsManager.getLastActiveProfile());
 
     connect(controlsWindow->profileManager, &ProfileManager::profileNameChange, this, &MainWindow::activeProfileChanged);
+
+    // updateOverlayTimer = new QTimer(this);
+    // connect(updateOverlayTimer, &QTimer::timeout, m_overlay, &OverlayWidget::);
+    // updateOverlayTimer->start(1000);
 }
 
 MainWindow::~MainWindow()

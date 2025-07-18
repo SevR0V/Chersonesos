@@ -324,20 +324,20 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     if(onlineFlag)
         sendDatagram(packControlData());
 
-    qDebug() << "Forward thrust: " << cForwardThrust;
-    qDebug() << "Side thrust: " << cSideThrust;
-    qDebug() << "Vertical thrust: " << cVerticalThrust;
-    qDebug() << "Yaw thrust: " << cYawThrust;
-    qDebug() << "Roll thrust: " << cRollThrust;
-    qDebug() << "Pitch thrust: " << cPitchThrust;
-    qDebug() << "Camera rotate: " << cCameraRotate;
-    qDebug() << "Manipulator rotate: " << cManipulatorRotate;
-    qDebug() << "Manipulator grip: " << cManipulatorGrip;
-    qDebug() << "Power limit:" << cPowerLimit;
-    qDebug() << "Lights: " << cLights;
-    qDebug() << "Position reset: " << cPosReset;
-    qDebug() << "MASTER Switch: " << cMASTER;
-    qDebug() << "Video recording: " << cRecording;
+    // qDebug() << "Forward thrust: " << cForwardThrust;
+    // qDebug() << "Side thrust: " << cSideThrust;
+    // qDebug() << "Vertical thrust: " << cVerticalThrust;
+    // qDebug() << "Yaw thrust: " << cYawThrust;
+    // qDebug() << "Roll thrust: " << cRollThrust;
+    // qDebug() << "Pitch thrust: " << cPitchThrust;
+    // qDebug() << "Camera rotate: " << cCameraRotate;
+    // qDebug() << "Manipulator rotate: " << cManipulatorRotate;
+    // qDebug() << "Manipulator grip: " << cManipulatorGrip;
+    // qDebug() << "Power limit:" << cPowerLimit;
+    // qDebug() << "Lights: " << cLights;
+    // qDebug() << "Position reset: " << cPosReset;
+    // qDebug() << "MASTER Switch: " << cMASTER;
+    // qDebug() << "Video recording: " << cRecording;
 }
 
 std::pair<QString, bool> findInputByInputName(const QJsonObject& rootObj, const QString& targetInputName) {
@@ -400,7 +400,7 @@ float UdpHandler::getControlValue(QString action,
     bool isSecondaryOnline = !((secondaryJoystick.contains("[offline]", Qt::CaseInsensitive)) || (secondaryJoystick == "No Device"));
     if(primaryJoyState.deviceName != primaryJoystick) isPrimaryOnline = false;
     if(secondaryJoyState.deviceName != secondaryJoystick) isSecondaryOnline = false;
-    if(! (isPrimaryOnline && isSecondaryOnline)){
+    if(! (isPrimaryOnline || isSecondaryOnline)){
         return 0;
     }
     bool primaryIncBut = false;

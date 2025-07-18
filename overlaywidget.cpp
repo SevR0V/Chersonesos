@@ -24,3 +24,15 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     painter.setFont(QFont("Arial", 12));
     painter.drawText(rect(), Qt::AlignCenter, "Overlay Example");
 }
+
+void OverlayWidget::telemetryUpdate(TelemetryPacket& telemetry){
+
+}
+void OverlayWidget::controlsUpdate(bool& stabRoll,
+                                   bool& stabPitch,
+                                   bool& stabYaw,
+                                   bool& stabDepth,
+                                   bool& masterFlag,
+                                   float& powerLimit){
+
+}
