@@ -11,8 +11,6 @@ class OverlayWidget : public QWidget
 
 public:
     explicit OverlayWidget(QWidget *parent = nullptr);
-
-public slots:
     void telemetryUpdate(TelemetryPacket& telemetry);
     void controlsUpdate(bool& stabRoll,
                         bool& stabPitch,
@@ -20,6 +18,9 @@ public slots:
                         bool& stabDepth,
                         bool& masterFlag,
                         float& powerLimit);
+
+public slots:
+
 private:
     float CENTER_ALIGMENT_X = 0.5f;
     float CENTER_ALIGMENT_Y = 0.5f;

@@ -46,15 +46,19 @@ signals:
                           quint16 senderPort);
     void recordingStartStop();
     void takeFrame();
-    void updateMaster();
+    void updateMaster(const bool &masterState);
     void onlineStateChanged(const bool &onlineState);
+    void updatePowerLimit(const int &powerLimit);
 
 public slots:
     void settingsChanged();
+    void masterChangedGui(const bool &masterState);
+    void updatePowerLimitFromGui(const int &powerLimit);
 
 private slots:
     void onReadyRead();
     void onJoystickDataChange(const DualJoystickState joysticsState);
+    void incrementValues();
 
 private:
     QUdpSocket *socket;
@@ -87,6 +91,8 @@ private:
     QTimer *onlineTimer;
     qint64 lastOnlineTime;
 
+    QTimer *incremental;
+
     SettingsManager *settingsManager = nullptr;
 
     bool onlineFlag;
@@ -100,6 +106,7 @@ private:
     float cManipulatorRotate;
     float cManipulatorGrip;
     float cPowerLimit;
+    float iPowerLimit;
     float RollKP;
     float RollKI;
     float RollKD;

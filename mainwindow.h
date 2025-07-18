@@ -57,6 +57,8 @@ private slots:
     void updatePID();
     void resetAngle();
     void activeProfileChanged();
+    void updateOverlay();
+    void updateMasterFromControl(const bool &masterState);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;

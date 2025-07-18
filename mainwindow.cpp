@@ -139,9 +139,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(controlsWindow->profileManager, &ProfileManager::profileNameChange, this, &MainWindow::activeProfileChanged);
 
-    // updateOverlayTimer = new QTimer(this);
-    // connect(updateOverlayTimer, &QTimer::timeout, m_overlay, &OverlayWidget::);
-    // updateOverlayTimer->start(1000);
+    updateOverlayTimer = new QTimer(this);
+    connect(updateOverlayTimer, &QTimer::timeout, this, &MainWindow::updateOverlay);
+    updateOverlayTimer->start(1000/60);
+
+    connect(udpHandler, &UdpHandler::updateMaster, this, &MainWindow::updateMasterFromControl);
 }
 
 MainWindow::~MainWindow()
@@ -366,4 +368,13 @@ void MainWindow::resetAngle(){
 void MainWindow::onJoystickUpdate(const DualJoystickState &state)
 {
     // qDebug() << state;
+}
+
+void MainWindow::updateOverlay(){
+
+}
+
+void MainWindow::updateMasterFromControl(const bool &masterState){
+    MainWindow::masterState = masterState;
+    setMasterButtonState(ui->masterButton, masterState, isPanelHidden);
 }
