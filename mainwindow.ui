@@ -490,5 +490,22 @@
   </widget>
  </widget>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>powerSlider</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>powerSpinBox</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>85</x>
+     <y>156</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>170</x>
+     <y>156</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
 </ui>

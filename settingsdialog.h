@@ -22,11 +22,21 @@ public:
     explicit SettingsDialog(QWidget *parent = nullptr);
     ~SettingsDialog();
     ProfileManager *profileManager;
+    void SaveSetting();
 
-
+signals:
+    void settingsChanged();
+    void settingsChangedPID();
+    void settingsChangedAngle();
 private slots:
     void onButtonClicked(QAbstractButton *button);
 
+
+    void on_pushButton_UpdatePID_clicked();
+
+    void on_pushButton_reset_corn_clicked();
+
+    void on_pushButton_clicked();
 
 private:
     Ui::SettingsDialog *ui;

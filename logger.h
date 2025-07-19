@@ -7,6 +7,8 @@
 #include <QDateTime>
 #include <QDir>
 #include <QDebug>
+#include <filesystem>
+#include <sstream>
 
 class Logger {
 public:

@@ -34,7 +34,8 @@ GamepadWorker::~GamepadWorker()
 void GamepadWorker::setPrimaryDevice(const QString &deviceName)
 {
     if (deviceName != NO_DEVICE_NAME) {
-        deactivateJoystick(primaryJoystick);
+        if(primaryJoystick != secondaryJoystick)
+            deactivateJoystick(primaryJoystick);
         primaryJoystick = joysticks.value(deviceName, nullptr);
         if (primaryJoystick) {
             qDebug() << "Primary Joystick opened:" << deviceName;
@@ -44,7 +45,8 @@ void GamepadWorker::setPrimaryDevice(const QString &deviceName)
             currentPrimaryName = NO_DEVICE_NAME;
         }
     } else {
-        deactivateJoystick(primaryJoystick);
+        if(primaryJoystick != secondaryJoystick)
+            deactivateJoystick(primaryJoystick);
         currentPrimaryName = NO_DEVICE_NAME;
     }
 }
@@ -52,7 +54,8 @@ void GamepadWorker::setPrimaryDevice(const QString &deviceName)
 void GamepadWorker::setSecondaryDevice(const QString &deviceName)
 {
     if (deviceName != NO_DEVICE_NAME) {
-        deactivateJoystick(secondaryJoystick);
+        if(primaryJoystick != secondaryJoystick)
+            deactivateJoystick(secondaryJoystick);
         secondaryJoystick = joysticks.value(deviceName, nullptr);
         if (secondaryJoystick) {
             qDebug() << "Secondary Joystick opened:" << deviceName;
@@ -62,7 +65,8 @@ void GamepadWorker::setSecondaryDevice(const QString &deviceName)
             currentSecondaryName = NO_DEVICE_NAME;
         }
     } else {
-        deactivateJoystick(secondaryJoystick);
+        if(primaryJoystick != secondaryJoystick)
+            deactivateJoystick(secondaryJoystick);
         currentSecondaryName = NO_DEVICE_NAME;
     }
 }

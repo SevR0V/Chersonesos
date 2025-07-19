@@ -1,10 +1,11 @@
 #include "video_recorder.h"
 
-VideoRecorder::VideoRecorder(CameraVideoFrameInfo* videoInfo, QObject* parent)
-    : QObject(parent), m_videoInfo(videoInfo), m_isRecording(false), m_recordInterval(30), m_storedVideoFilesLimit(10) {}
+VideoRecorder::VideoRecorder(RecordFrameInfo* recordInfo, QObject* parent)
+    : QObject(parent), m_recordInfo(recordInfo), m_isRecording(false), m_recordInterval(30), m_storedVideoFilesLimit(10) {}
 
 void VideoRecorder::setRecordInterval(int interval) {
     m_recordInterval = interval > 0 ? interval : 30;
+    qDebug() << "Установлен интервал записи для камеры" << m_recordInfo->name << ": " << m_recordInterval << "секунд";
 }
 
 void VideoRecorder::setStoredVideoFilesLimit(int limit) {
@@ -13,7 +14,7 @@ void VideoRecorder::setStoredVideoFilesLimit(int limit) {
 
 void VideoRecorder::manageStoredFiles() {
     if (m_storedVideoFilesLimit == 0) {
-        QString errorMsg = QString("Старые записи не удаляются: проверяйте свободное место для камеры %1").arg(m_videoInfo->name);
+        QString errorMsg = QString("Старые записи не удаляются: проверяйте свободное место для камеры %1").arg(m_recordInfo->name);
         qDebug() << errorMsg;
         emit errorOccurred("VideoRecorder", errorMsg);
         return;
@@ -21,7 +22,7 @@ void VideoRecorder::manageStoredFiles() {
 
     try {
         std::vector<std::filesystem::directory_entry> videoFiles;
-        for (const auto& entry : std::filesystem::directory_iterator(m_sessionDirectory)) {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(m_sessionDirectory)) {
             if (entry.is_regular_file() && entry.path().extension() == ".avi") {
                 videoFiles.push_back(entry);
             }
@@ -47,7 +48,7 @@ void VideoRecorder::manageStoredFiles() {
         }
     } catch (const std::filesystem::filesystem_error& e) {
         QString errorMsg = QString("Ошибка при управлении видеофайлами для камеры %1: %2")
-                               .arg(m_videoInfo->name).arg(e.what());
+                               .arg(m_recordInfo->name).arg(e.what());
         qDebug() << errorMsg;
         emit errorOccurred("VideoRecorder", errorMsg);
     }
@@ -55,21 +56,20 @@ void VideoRecorder::manageStoredFiles() {
 
 void VideoRecorder::startRecording() {
     if (m_isRecording) {
-        QString errorMsg = QString("Запись уже активна для камеры %1").arg(m_videoInfo->name);
+        QString errorMsg = QString("Запись уже активна для камеры %1").arg(m_recordInfo->name);
         qDebug() << errorMsg;
         emit errorOccurred("VideoRecorder", errorMsg);
         return;
     }
 
     m_isRecording = true;
-    qDebug() << "Начало записи видео для камеры" << m_videoInfo->name;
+    qDebug() << "Начало записи видео для камеры" << m_recordInfo->name;
 
-    // Проверяем и создаем папку video
     std::filesystem::path pathToVideoDirectory = std::filesystem::current_path() / "video";
     try {
         if (!std::filesystem::exists(pathToVideoDirectory)) {
             if (!std::filesystem::create_directory(pathToVideoDirectory)) {
-                QString errorMsg = QString("Не удалось создать директорию video для камеры %1").arg(m_videoInfo->name);
+                QString errorMsg = QString("Не удалось создать директорию video для камеры %1").arg(m_recordInfo->name);
                 qDebug() << errorMsg;
                 m_isRecording = false;
                 emit errorOccurred("VideoRecorder", errorMsg);
@@ -79,7 +79,7 @@ void VideoRecorder::startRecording() {
         } else {
             std::filesystem::perms perms = std::filesystem::status(pathToVideoDirectory).permissions();
             if ((perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
-                QString errorMsg = QString("Нет прав на запись в директорию video для камеры %1").arg(m_videoInfo->name);
+                QString errorMsg = QString("Нет прав на запись в директорию video для камеры %1").arg(m_recordInfo->name);
                 qDebug() << errorMsg;
                 m_isRecording = false;
                 emit errorOccurred("VideoRecorder", errorMsg);
@@ -89,23 +89,56 @@ void VideoRecorder::startRecording() {
         }
     } catch (const std::filesystem::filesystem_error& e) {
         QString errorMsg = QString("Ошибка файловой системы для камеры %1: %2")
-                               .arg(m_videoInfo->name).arg(e.what());
+                               .arg(m_recordInfo->name).arg(e.what());
         m_isRecording = false;
         emit errorOccurred("VideoRecorder", errorMsg);
         emit recordingFailed(errorMsg);
         return;
     }
 
-    // Создаем сессионную директорию
-    std::string sessionDirName = generateSessionDirectoryName();
-    m_sessionDirectory = pathToVideoDirectory / sessionDirName;
+    // Создание папки с датой
+    std::string dateDirName = generateDateDirectoryName();
+    std::filesystem::path dateDirectory = pathToVideoDirectory / dateDirName;
+    try {
+        if (!std::filesystem::exists(dateDirectory)) {
+            if (!std::filesystem::create_directory(dateDirectory)) {
+                QString errorMsg = QString("Не удалось создать директорию даты %1 для камеры %2")
+                                       .arg(QString::fromStdString(dateDirectory.string())).arg(m_recordInfo->name);
+                qDebug() << errorMsg;
+                m_isRecording = false;
+                emit errorOccurred("VideoRecorder", errorMsg);
+                emit recordingFailed(errorMsg);
+                return;
+            }
+        } else if (!std::filesystem::is_directory(dateDirectory)) {
+            QString errorMsg = QString("Путь %1 существует, но не является директорией для камеры %2")
+                                   .arg(QString::fromStdString(dateDirectory.string())).arg(m_recordInfo->name);
+            qDebug() << errorMsg;
+            m_isRecording = false;
+            emit errorOccurred("VideoRecorder", errorMsg);
+            emit recordingFailed(errorMsg);
+            return;
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        QString errorMsg = QString("Ошибка файловой системы при создании директории даты для камеры %1: %2")
+                               .arg(m_recordInfo->name).arg(e.what());
+        m_isRecording = false;
+        emit errorOccurred("VideoRecorder", errorMsg);
+        emit recordingFailed(errorMsg);
+        return;
+    }
+
+    // Создание папки с временем
+    std::string timeDirName = generateTimeDirectoryName();
+    m_sessionDirectory = dateDirectory / timeDirName;
     try {
         if (!std::filesystem::exists(m_sessionDirectory)) {
             if (!std::filesystem::create_directory(m_sessionDirectory)) {
-                QString errorMsg = QString("Не удалось создать сессионную директорию %1 для камеры %2")
-                                       .arg(QString::fromStdString(m_sessionDirectory.string())).arg(m_videoInfo->name);
+                QString errorMsg = QString("Не удалось создать директорию времени %1 для камеры %2")
+                                       .arg(QString::fromStdString(m_sessionDirectory.string())).arg(m_recordInfo->name);
                 qDebug() << errorMsg;
                 m_isRecording = false;
+                if (videoWriter.isOpened()) videoWriter.release();
                 emit errorOccurred("VideoRecorder", errorMsg);
                 emit recordingFailed(errorMsg);
                 return;
@@ -113,138 +146,124 @@ void VideoRecorder::startRecording() {
         } else {
             if (!std::filesystem::is_directory(m_sessionDirectory)) {
                 QString errorMsg = QString("Путь %1 существует, но не является директорией для камеры %2")
-                                       .arg(QString::fromStdString(m_sessionDirectory.string())).arg(m_videoInfo->name);
+                                       .arg(QString::fromStdString(m_sessionDirectory.string())).arg(m_recordInfo->name);
                 qDebug() << errorMsg;
                 m_isRecording = false;
+                if (videoWriter.isOpened()) videoWriter.release();
                 emit errorOccurred("VideoRecorder", errorMsg);
                 emit recordingFailed(errorMsg);
                 return;
             }
             std::filesystem::perms perms = std::filesystem::status(m_sessionDirectory).permissions();
             if ((perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
-                QString errorMsg = QString("Нет прав на запись в сессионную директорию %1 для камеры %2")
-                                       .arg(QString::fromStdString(m_sessionDirectory.string())).arg(m_videoInfo->name);
+                QString errorMsg = QString("Нет прав на запись в директорию времени %1 для камеры %2")
+                                       .arg(QString::fromStdString(m_sessionDirectory.string())).arg(m_recordInfo->name);
                 qDebug() << errorMsg;
                 m_isRecording = false;
+                if (videoWriter.isOpened()) videoWriter.release();
                 emit errorOccurred("VideoRecorder", errorMsg);
                 emit recordingFailed(errorMsg);
                 return;
             }
         }
     } catch (const std::filesystem::filesystem_error& e) {
-        QString errorMsg = QString("Ошибка файловой системы при создании сессионной директории для камеры %1: %2")
-                               .arg(m_videoInfo->name).arg(e.what());
+        QString errorMsg = QString("Ошибка файловой системы при создании директории времени для камеры %1: %2")
+                               .arg(m_recordInfo->name).arg(e.what());
         m_isRecording = false;
+        if (videoWriter.isOpened()) videoWriter.release();
         emit errorOccurred("VideoRecorder", errorMsg);
         emit recordingFailed(errorMsg);
         return;
     }
 
-    // Инициализируем параметры видео
+    startNewSegment();
+}
+
+void VideoRecorder::stopRecording() {
+    m_isRecording = false;
+    if (videoWriter.isOpened()) {
+        videoWriter.release();
+        qDebug() << "Запись видео остановлена для камеры" << m_recordInfo->name;
+    }
+}
+
+void VideoRecorder::recordFrame() {
+    if (!m_isRecording) return;
+
+    if (!m_timer.isValid()) {
+        m_timer.start();
+    }
+
+    if (m_timer.elapsed() >= m_recordInterval * 1000) {
+        if (videoWriter.isOpened()) {
+            videoWriter.release();
+            qDebug() << "Запись сегмента видео завершена для файла:" << QString::fromStdString(fileName) << "через" << m_timer.elapsed() << "мс";
+            emit recordingFinished();
+        }
+        manageStoredFiles();
+        startNewSegment();
+        m_timer.restart();
+        qDebug() << "Новый сегмент начат для камеры" << m_recordInfo->name;
+    }
+
+    cv::Mat frame;
+    {
+        QMutexLocker locker(m_recordInfo->mutex);
+        if (!m_recordInfo->img.empty()) {
+            frame = m_recordInfo->img.clone();
+        }
+    }
+
+    if (!frame.empty() && videoWriter.isOpened()) {
+        cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
+        try {
+            videoWriter.write(frame);
+        } catch (const cv::Exception& e) {
+            QString errorMsg = QString("Ошибка записи кадра для камеры %1: %2")
+                                   .arg(m_recordInfo->name).arg(e.what());
+            qDebug() << errorMsg;
+            if (videoWriter.isOpened()) videoWriter.release();
+            emit errorOccurred("VideoRecorder", errorMsg);
+        }
+    } else {
+        qDebug() << "Пропущен пустой кадр или VideoWriter не открыт для камеры" << m_recordInfo->name;
+    }
+}
+
+void VideoRecorder::startNewSegment() {
+    fileName = generateFileName("chersonesos", ".avi");
+    std::string filePath = (m_sessionDirectory / fileName).string();
+
     int fourccCode = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
     cv::Size videoResolution;
     int realFPS = 20;
 
     {
-        QMutexLocker locker(m_videoInfo->mutex);
-        if (m_videoInfo->frameBuffer.empty()) {
-            QString errorMsg = QString("Буфер кадров пуст для камеры %1").arg(m_videoInfo->name);
+        QMutexLocker locker(m_recordInfo->mutex);
+        if (m_recordInfo->img.empty()) {
+            QString errorMsg = QString("Кадр пуст для камеры %1").arg(m_recordInfo->name);
             qDebug() << errorMsg;
-            m_isRecording = false;
+            if (videoWriter.isOpened()) videoWriter.release();
             emit errorOccurred("VideoRecorder", errorMsg);
-            emit recordingFailed(errorMsg);
             return;
         }
-        bool validFrameFound = false;
-
-        for (const auto& frame : m_videoInfo->frameBuffer) {
-            if (!frame.empty()) {
-                videoResolution = frame.size();
-                validFrameFound = true;
-                break;
-            }
-        }
-
-        if (!validFrameFound) {
-            QString errorMsg = QString("Все кадры в буфере пусты для камеры %1").arg(m_videoInfo->name);
-            qDebug() << errorMsg;
-            m_isRecording = false;
-            emit errorOccurred("VideoRecorder", errorMsg);
-            emit recordingFailed(errorMsg);
-            return;
-        }
+        videoResolution = m_recordInfo->img.size();
     }
 
-    QElapsedTimer timer;
-    timer.start();
-
-    while (m_isRecording) {
-        // Генерируем имя файла и путь внутри сессионной директории
-        std::string fileName = generateFileName("chersonesos", ".avi");
-        std::string filePath = (m_sessionDirectory / fileName).string();
-
-        // Инициализируем VideoWriter
-        cv::VideoWriter videoWriter(filePath, fourccCode, realFPS, videoResolution);
-        if (!videoWriter.isOpened()) {
-            QString errorMsg = QString("Не удалось открыть VideoWriter для файла %1, Кодек: %2, FPS: %3, Разрешение: %4x%5")
-                                   .arg(QString::fromStdString(filePath)).arg(fourccCode).arg(realFPS)
-                                   .arg(videoResolution.width).arg(videoResolution.height);
-            qDebug() << errorMsg;
-            m_isRecording = false;
-            emit errorOccurred("VideoRecorder", errorMsg);
-            emit recordingFailed(errorMsg);
-            return;
-        }
-
-        qDebug() << "Запись видео начата для файла:" << QString::fromStdString(fileName)
-                 << ", FPS:" << realFPS << ", Разрешение:" << videoResolution.width << "x" << videoResolution.height;
-        emit recordingStarted();
-
-        // Записываем кадры для текущего сегмента
-        timer.restart();
-        while (m_isRecording && timer.elapsed() < (m_recordInterval * 1000)) {
-            cv::Mat frame;
-            {
-                QMutexLocker locker(m_videoInfo->mutex);
-                int latestIndex = (m_videoInfo->bufferIndex == 0) ? 4 : m_videoInfo->bufferIndex - 1;
-                if (!m_videoInfo->frameBuffer.empty() && !m_videoInfo->frameBuffer[latestIndex].empty()) {
-                    frame = m_videoInfo->frameBuffer[latestIndex].clone();
-                }
-            }
-
-            if (!frame.empty()) {
-                try {
-                    videoWriter.write(frame);
-                } catch (const cv::Exception& e) {
-                    QString errorMsg = QString("Ошибка записи кадра для камеры %1: %2")
-                                           .arg(m_videoInfo->name).arg(e.what());
-                    qDebug() << errorMsg;
-                    videoWriter.release();
-                    m_isRecording = false;
-                    emit errorOccurred("VideoRecorder", errorMsg);
-                    emit recordingFailed(errorMsg);
-                    return;
-                }
-            } else {
-                qDebug() << "Пропущен пустой кадр для камеры" << m_videoInfo->name;
-            }
-
-            QThread::msleep(30);
-        }
-
-        videoWriter.release();
-        qDebug() << "Запись сегмента видео завершена для файла:" << QString::fromStdString(fileName);
-        emit recordingFinished();
-
-        manageStoredFiles();
+    videoWriter.open(filePath, fourccCode, realFPS, videoResolution);
+    if (!videoWriter.isOpened()) {
+        QString errorMsg = QString("Не удалось открыть VideoWriter для файла %1, Кодек: %2, FPS: %3, Разрешение: %4x%5")
+                               .arg(QString::fromStdString(filePath)).arg(fourccCode).arg(realFPS)
+                               .arg(videoResolution.width).arg(videoResolution.height);
+        qDebug() << errorMsg;
+        if (videoWriter.isOpened()) videoWriter.release();
+        emit errorOccurred("VideoRecorder", errorMsg);
+        return;
     }
 
-    qDebug() << "Запись видео полностью завершена для камеры" << m_videoInfo->name;
-}
-
-void VideoRecorder::stopRecording() {
-    m_isRecording = false;
-    qDebug() << "Остановка записи видео для камеры" << m_videoInfo->name;
+    qDebug() << "Запись видео начата для файла:" << QString::fromStdString(fileName)
+             << ", FPS:" << realFPS << ", Разрешение:" << videoResolution.width << "x" << videoResolution.height;
+    emit recordingStarted();
 }
 
 std::string VideoRecorder::sanitizeFileName(const std::string& input) {
@@ -276,12 +295,12 @@ std::string VideoRecorder::generateFileName(const std::string& prefix, const std
 #else
     timeInfo = *std::localtime(&now);
 #endif
-    std::string cameraName = sanitizeFileName(m_videoInfo->name.toStdString());
+    std::string cameraName = sanitizeFileName(m_recordInfo->name.toStdString());
     ss << prefix << "_" << cameraName << "_" << std::put_time(&timeInfo, "%Y%m%d_%H%M%S") << extension;
     return ss.str();
 }
 
-std::string VideoRecorder::generateSessionDirectoryName() {
+std::string VideoRecorder::generateDateDirectoryName() {
     auto now = std::time(nullptr);
     std::tm timeInfo;
     std::stringstream ss;
@@ -290,7 +309,20 @@ std::string VideoRecorder::generateSessionDirectoryName() {
 #else
     timeInfo = *std::localtime(&now);
 #endif
-    std::string cameraName = sanitizeFileName(m_videoInfo->name.toStdString());
-    ss << cameraName << "_" << std::put_time(&timeInfo, "%Y%m%d_%H%M%S");
+    ss << std::put_time(&timeInfo, "%d%m%Y");
+    return ss.str();
+}
+
+std::string VideoRecorder::generateTimeDirectoryName() {
+    auto now = std::time(nullptr);
+    std::tm timeInfo;
+    std::stringstream ss;
+#ifdef _MSC_VER
+    localtime_s(&timeInfo, &now);
+#else
+    timeInfo = *std::localtime(&now);
+#endif
+    std::string cameraName = sanitizeFileName(m_recordInfo->name.toStdString());
+    ss << cameraName << "_" << std::put_time(&timeInfo, "%H%M%S");
     return ss.str();
 }

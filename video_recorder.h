@@ -6,7 +6,6 @@
 #include <QThread>
 #include <QElapsedTimer>
 #include <QMutexLocker>
-#include <QDebug>
 #include <filesystem>
 #include <sstream>
 #include <ctime>
@@ -19,13 +18,14 @@
 class VideoRecorder : public QObject {
     Q_OBJECT
 public:
-    explicit VideoRecorder(CameraVideoFrameInfo* videoInfo, QObject* parent = nullptr);
+    explicit VideoRecorder(RecordFrameInfo* recordInfo, QObject* parent = nullptr);
     void setRecordInterval(int interval);
     void setStoredVideoFilesLimit(int limit);
 
 public slots:
     void startRecording();
     void stopRecording();
+    void recordFrame();
 
 signals:
     void recordingStarted();
@@ -35,10 +35,15 @@ signals:
 
 private:
     void manageStoredFiles();
+    void startNewSegment();
     std::string sanitizeFileName(const std::string& input);
     std::string generateFileName(const std::string& prefix, const std::string& extension);
-    std::string generateSessionDirectoryName();
-    CameraVideoFrameInfo* m_videoInfo;
+    std::string generateDateDirectoryName();
+    std::string generateTimeDirectoryName();
+    RecordFrameInfo* m_recordInfo;
+    cv::VideoWriter videoWriter;
+    QElapsedTimer m_timer;
+    std::string fileName;
     bool m_isRecording;
     int m_recordInterval;
     int m_storedVideoFilesLimit;

@@ -17,15 +17,16 @@ SettingsManager& SettingsManager::instance()
 }
 bool SettingsManager::initialize(const QString& profileName)
 {
+    bool newFile=false;
     if(m_initialized) return true;
 
     QString baseDir = QCoreApplication::applicationDirPath();
-    QString targetDirPath = baseDir + QDir::separator() + "Control Profiles";
+    QString targetDirPath = baseDir + QDir::separator() + "Configs";
 
     QDir dir;
     if (!dir.exists(targetDirPath)) {
         if (!dir.mkpath(targetDirPath)) {
-            qWarning() << "Не удалось создать папку Control Profiles";
+            qWarning() << "Не удалось создать папку Configs";
             return false;
         }
     }
@@ -33,13 +34,51 @@ bool SettingsManager::initialize(const QString& profileName)
     QString targetFile = targetDirPath + QDir::separator() + profileName;
 
     QFile file(targetFile);
+    if (!file.exists()) {
+        newFile=true;
+        if (!file.open(QIODevice::WriteOnly)) {
+            qWarning() << "Cannot create file:" << targetFile;
+            // Дополнительная обработка ошибки создания файла
+        } else {
+            file.close(); // Закрываем файл после создания
+        }
+    }
+    if (newFile) {
+    SettingsManager::instance().setString("ip", "192.168.0.1");
+    SettingsManager::instance().setString("portEdit", "8080");
+    SettingsManager::instance().setInt("spinBoxPower", 0);
+
+    SettingsManager::instance().setInt("comboBoxCam", 0);
+    SettingsManager::instance().setInt("spinBoxTimeCam", 0);
+    SettingsManager::instance().setInt("spinBoxMaxCam", 0);
+    SettingsManager::instance().setInt("Cam_angle_minus", 0);
+    SettingsManager::instance().setInt("Cam_angle_plus", 0);
+
+    SettingsManager::instance().setDouble("RollkP", 5);
+    SettingsManager::instance().setDouble("RollkI", 0);
+    SettingsManager::instance().setDouble("RollkD", 0);
+    SettingsManager::instance().setDouble("PitchkP", 5);
+    SettingsManager::instance().setDouble("PitchkI", 0);
+    SettingsManager::instance().setDouble("PitchkD", 0);
+    SettingsManager::instance().setDouble("YawkP", 5);
+    SettingsManager::instance().setDouble("YawkI", 0);
+    SettingsManager::instance().setDouble("YawkD", 0);
+    SettingsManager::instance().setDouble("DepthkP", 200);
+    SettingsManager::instance().setDouble("DepthkI", 0);
+    SettingsManager::instance().setDouble("DepthkD", 0);
+    setLastActiveProfile("default");  // Устанавливаем значение по умолчанию
+    SettingsManager::instance().saveToFile("settings.json");
+    newFile=false;
+    }
+    // Теперь открываем файл для чтения
     if (!file.open(QIODevice::ReadOnly)) {
         qWarning() << "Cannot open settings file:" << targetFile;
-        return false;
+        // Дополнительная обработка ошибки открытия файла
     }
 
     QJsonParseError error;
     QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &error);
+    file.close();  // Явное закрытие после чтения!
     if(error.error != QJsonParseError::NoError) {
         qWarning() << "JSON parse error:" << error.errorString();
         return false;
@@ -49,6 +88,10 @@ bool SettingsManager::initialize(const QString& profileName)
     m_initialized = true;
     return true;
 }
+
+
+
+
 
 QJsonValue SettingsManager::get(const QString& key, const QJsonValue& defaultValue) const
 {
@@ -96,7 +139,7 @@ bool SettingsManager::loadFromFile(const QString& filePath)
     }
 
     m_settings = doc.object();
-    emit settingsChanged();
+
     return true;
 }
 
@@ -104,12 +147,12 @@ bool SettingsManager::saveToFile(const QString& profileName) const
 {
 
     QString baseDir = QCoreApplication::applicationDirPath();
-    QString targetDirPath = baseDir + QDir::separator() + "Control Profiles";
+    QString targetDirPath = baseDir + QDir::separator() + "Configs";
 
     QDir dir;
     if (!dir.exists(targetDirPath)) {
         if (!dir.mkpath(targetDirPath)) {
-            qWarning() << "Не удалось создать папку Control Profiles";
+            qWarning() << "Не удалось создать папку Configs";
             return false;
         }
     }
@@ -127,6 +170,7 @@ bool SettingsManager::saveToFile(const QString& profileName) const
         qWarning() << "Failed to write settings to file";
         return false;
     }
+
     return true;
 }
 
@@ -187,7 +231,7 @@ void SettingsManager::setValue(const QString& key, const QJsonValue& value)
 {
     if (m_settings[key] != value) {
         m_settings[key] = value;
-        emit settingsChanged();
+      //  emit settingsChanged();
     }
 }
 
@@ -214,4 +258,19 @@ void SettingsManager::setDouble(const QString& key, double value)
 void SettingsManager::setObject(const QString& key, const QJsonObject& value)
 {
     setValue(key, value);
+}
+
+QString SettingsManager::getLastActiveProfile() const {
+    return getString(LAST_ACTIVE_PROFILE_KEY, "default");  // "default" если нет значения
+}
+
+void SettingsManager::setLastActiveProfile(const QString &profileName) {
+    setString(LAST_ACTIVE_PROFILE_KEY, profileName);  // Автоматически сохранит в JSON
+}
+
+void SettingsManager::updateLastActiveProfile(const QString &profileName) {
+    if (getLastActiveProfile() != profileName) {
+        setLastActiveProfile(profileName);
+        qDebug() << "Last active profile changed to:" << profileName;
+    }
 }

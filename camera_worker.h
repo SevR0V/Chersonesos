@@ -11,26 +11,27 @@
 class CameraWorker : public QObject {
     Q_OBJECT
 public:
-    explicit CameraWorker(CameraFrameInfo* frameInfo, CameraVideoFrameInfo* videoInfo, QObject* parent = nullptr);
+    explicit CameraWorker(CameraFrameInfo* frameInfo, StreamFrameInfo* streamInfo, RecordFrameInfo* recordInfo, QObject* parent = nullptr);
     ~CameraWorker();
-
-    void stop();
 
 public slots:
     void capture();
-
-signals:
-    void frameReady();
-    void frameDataReady(const QByteArray& frameData, int width, int height, int pixelType);
-    void captureFailed(const QString& reason);
-    void errorOccurred(const QString& component, const QString& message);
+    void stop();
 
 private:
     void cleanupCamera();
 
+private:
     CameraFrameInfo* m_frameInfo;
-    CameraVideoFrameInfo* m_videoInfo;
+    StreamFrameInfo* m_streamInfo;
+    RecordFrameInfo* m_recordInfo;
     bool m_isRunning;
+
+signals:
+    void frameReady();
+    //void frameDataReady(const QByteArray& frameData, int width, int height, unsigned int pixelType);
+    void errorOccurred(const QString& component, const QString& message);
+    void captureFailed(const QString& reason);
 };
 
 #endif // CAMERA_WORKER_H

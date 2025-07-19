@@ -56,6 +56,7 @@ bool ProfileManager::loadFromProfileName(const QString& profileName) {
     }
 
     profileObject = doc.object();
+    emit profileNameChange();
     return true;
 }
 
@@ -191,3 +192,8 @@ QStringList ProfileManager::listAvailableProfiles() {
 QJsonObject ProfileManager::getProfile() const {
     return profileObject;
 }
+
+// void ProfileManager::profileNameChange()
+// {
+//     return;
+// }

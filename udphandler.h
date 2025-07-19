@@ -12,10 +12,11 @@
 #include <QJsonDocument>
 #include <QFile>
 #include <QMultiMap>
+#include <QTimer>
 #include "gamepadworker.h"
 #include "profilemanager.h"
 #include "udptelemetryparser.h"
-#include <QTimer>
+#include "SettingsManager.h"
 
 class UdpHandler : public QObject {
     Q_OBJECT
@@ -38,18 +39,26 @@ public:
     bool connectToROV(const QHostAddress &address, quint16 port);
     bool getOnlineStatus;
 
+
 signals:
     void datagramReceived(const QByteArray &data,
                           const QHostAddress &sender,
                           quint16 senderPort);
     void recordingStartStop();
     void takeFrame();
-    void updateMaster();
+    void updateMaster(const bool &masterState);
     void onlineStateChanged(const bool &onlineState);
+    void updatePowerLimit(const int &powerLimit);
+
+public slots:
+    void settingsChanged();
+    void masterChangedGui(const bool &masterState);
+    void updatePowerLimitFromGui(const int &powerLimit);
 
 private slots:
     void onReadyRead();
     void onJoystickDataChange(const DualJoystickState joysticsState);
+    void incrementValues();
 
 private:
     QUdpSocket *socket;
@@ -82,6 +91,10 @@ private:
     QTimer *onlineTimer;
     qint64 lastOnlineTime;
 
+    QTimer *incremental;
+
+    SettingsManager *settingsManager = nullptr;
+
     bool onlineFlag;
     float cForwardThrust;
     float cSideThrust;
@@ -93,6 +106,7 @@ private:
     float cManipulatorRotate;
     float cManipulatorGrip;
     float cPowerLimit;
+    float iPowerLimit;
     float RollKP;
     float RollKI;
     float RollKD;

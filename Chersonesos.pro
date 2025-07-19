@@ -19,7 +19,6 @@ SOURCES += \
     profilemanager.cpp \
     camera.cpp \
     camera_worker.cpp \
-    frame_processor.cpp \
     logger.cpp \
     main.cpp \
     settingsdialog.cpp \
@@ -27,7 +26,8 @@ SOURCES += \
     udptelemetryparser.cpp \
     video_recorder.cpp \
     video_streamer.cpp \
-    settingsdialog.cpp
+    settingsdialog.cpp \
+    overlaywidget.cpp
 
 HEADERS += \
     SettingsManager.h \
@@ -41,14 +41,14 @@ HEADERS += \
     camera.h \
     camera_structs.h \
     camera_worker.h \
-    frame_processor.h \
     logger.h \
     settingsdialog.h \
     udphandler.h \
     udptelemetryparser.h \
     video_recorder.h \
     video_streamer.h \
-    settingsdialog.h
+    settingsdialog.h \
+    overlaywidget.h
 
 FORMS += \
     controlwindow.ui \

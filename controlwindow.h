@@ -26,6 +26,9 @@ public:
     ~ControlWindow();
     void controlsButtonPressed();
     bool isJoyListenerFinished;
+    void loadProfile(const QString &profileName);
+
+    ProfileManager *profileManager;
 
 private slots:
     // гуишные штучки
@@ -63,7 +66,6 @@ private:
     QString currentSecondaryDeviceName;
     QString activeInputName;
 
-    ProfileManager *profileManager;
 
     GamepadWorker *_worker;
     void profileActionDetected(QString inputType, int inputIdx);

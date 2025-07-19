@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <QDebug>
 #include <QNetworkInterface>
+#include <cmath>
 
 /*TODO
  Связь все управлений и телеметрии с основным окном!!!*/
@@ -36,7 +37,8 @@ UdpHandler::UdpHandler(ProfileManager *profileManager, UdpTelemetryParser *telem
     cCameraRotate = 0;
     cManipulatorRotate = 0;
     cManipulatorGrip = 0;
-    cPowerLimit = 0;
+    cPowerLimit = 0; // 0..1
+    iPowerLimit = 0;
     RollKP = 0;
     RollKI = 0;
     RollKD = 0;
@@ -76,6 +78,10 @@ UdpHandler::UdpHandler(ProfileManager *profileManager, UdpTelemetryParser *telem
     onlineTimer = new QTimer(this);
     connect(onlineTimer, &QTimer::timeout, this, &UdpHandler::onlineTimerTick);
     onlineTimer->start(1000);
+
+    incremental = new QTimer(this);
+    connect(incremental, &QTimer::timeout, this, &UdpHandler::incrementValues);
+    incremental->start(50);
 
     qDebug() << "Local IPs:";
     for (const QHostAddress &addr : QNetworkInterface::allAddresses()) {
@@ -244,8 +250,8 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     //Manipulator grip
     cManipulatorGrip = getControlValue("manipulator_grip", machineToInput, joysticsState, controlProfile, "Open", "Close");
 
-    //Power limit
-    cPowerLimit = getControlValue("power_limit", machineToInput, joysticsState, controlProfile);
+    //Power limit incremental
+    iPowerLimit = getControlValue("power_limit", machineToInput, joysticsState, controlProfile);
 
     //Camera rotate
     cCameraRotate = getControlValue("camera_rotate", machineToInput, joysticsState, controlProfile, "Up", "Down");
@@ -295,7 +301,7 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     if(masterButtonState){
         if (!masterValueChangeFlag){
             cMASTER = !cMASTER;
-            emit updateMaster();
+            emit updateMaster(cMASTER);
             masterValueChangeFlag = true;
         }
     } else {
@@ -323,20 +329,20 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     if(onlineFlag)
         sendDatagram(packControlData());
 
-    qDebug() << "Forward thrust: " << cForwardThrust;
-    qDebug() << "Side thrust: " << cSideThrust;
-    qDebug() << "Vertical thrust: " << cVerticalThrust;
-    qDebug() << "Yaw thrust: " << cYawThrust;
-    qDebug() << "Roll thrust: " << cRollThrust;
-    qDebug() << "Pitch thrust: " << cPitchThrust;
-    qDebug() << "Camera rotate: " << cCameraRotate;
-    qDebug() << "Manipulator rotate: " << cManipulatorRotate;
-    qDebug() << "Manipulator grip: " << cManipulatorGrip;
-    qDebug() << "Power limit:" << cPowerLimit;
-    qDebug() << "Lights: " << cLights;
-    qDebug() << "Position reset: " << cPosReset;
-    qDebug() << "MASTER Switch: " << cMASTER;
-    qDebug() << "Video recording: " << cRecording;
+    // qDebug() << "Forward thrust: " << cForwardThrust;
+    // qDebug() << "Side thrust: " << cSideThrust;
+    // qDebug() << "Vertical thrust: " << cVerticalThrust;
+    // qDebug() << "Yaw thrust: " << cYawThrust;
+    // qDebug() << "Roll thrust: " << cRollThrust;
+    // qDebug() << "Pitch thrust: " << cPitchThrust;
+    // qDebug() << "Camera rotate: " << cCameraRotate;
+    // qDebug() << "Manipulator rotate: " << cManipulatorRotate;
+    // qDebug() << "Manipulator grip: " << cManipulatorGrip;
+    // qDebug() << "Power limit increment:" << iPowerLimit;
+    // qDebug() << "Lights: " << cLights;
+    // qDebug() << "Position reset: " << cPosReset;
+    // qDebug() << "MASTER Switch: " << cMASTER;
+    // qDebug() << "Video recording: " << cRecording;
 }
 
 std::pair<QString, bool> findInputByInputName(const QJsonObject& rootObj, const QString& targetInputName) {
@@ -399,7 +405,7 @@ float UdpHandler::getControlValue(QString action,
     bool isSecondaryOnline = !((secondaryJoystick.contains("[offline]", Qt::CaseInsensitive)) || (secondaryJoystick == "No Device"));
     if(primaryJoyState.deviceName != primaryJoystick) isPrimaryOnline = false;
     if(secondaryJoyState.deviceName != secondaryJoystick) isSecondaryOnline = false;
-    if(! (isPrimaryOnline && isSecondaryOnline)){
+    if(! (isPrimaryOnline || isSecondaryOnline)){
         return 0;
     }
     bool primaryIncBut = false;
@@ -528,6 +534,7 @@ float UdpHandler::getControlValue(QString action,
     value = value == 0 ? ((primaryIncBut - primaryDecBut) * 100) : value;
     value = secondaryAxis == 0 ? value : secondaryAxis;
     value = primaryAxis == 0 ? value : primaryAxis;
+    value = value/100.0f;
     return value;
 }
 
@@ -541,3 +548,34 @@ bool UdpHandler::connectToROV(const QHostAddress &address, quint16 port){
     return true;
 }
 
+void UdpHandler::settingsChanged(){
+    SettingsManager &settingsManager = SettingsManager::instance();
+    QString ip = settingsManager.getString("ip");
+    quint16 port = settingsManager.getInt("portEdit");
+    remoteAddress.setAddress(ip);
+    setRemoteEndpoint(remoteAddress, port);
+}
+
+void UdpHandler::masterChangedGui(const bool &masterState)
+{
+    cMASTER = masterState;
+}
+
+float constrainf(const float value, const float lower_limit, const float upper_limit){
+    if(value>upper_limit) return upper_limit;
+    if(value<lower_limit) return lower_limit;
+    return value;
+}
+
+void UdpHandler::incrementValues(){
+    cPowerLimit = cPowerLimit + float(iPowerLimit/50.0f);
+    cPowerLimit = constrainf(cPowerLimit, 0.0f, 1.0f);
+    emit updatePowerLimit(std::round(cPowerLimit * 100));
+
+    qDebug() << cPowerLimit << " inc: " <<iPowerLimit;
+}
+
+
+void UdpHandler::updatePowerLimitFromGui(const int &powerLimit){
+    cPowerLimit = powerLimit / 100.0f;
+}

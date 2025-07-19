@@ -18,6 +18,12 @@
 #include "udphandler.h"
 #include "gamepadworker.h"
 #include "udptelemetryparser.h"
+#include <winspool.h>
+#include <QResizeEvent>
+#include "SettingsManager.h"
+#include "overlaywidget.h"
+
+class OverlayWidget;
 
 namespace Ui {
 class MainWindow;
@@ -47,9 +53,16 @@ private slots:
     void onDatagramReceived(const QByteArray &data, const QHostAddress &sender, quint16 port);
     void onJoystickUpdate(const DualJoystickState &state);
     void onlineStateChanged(const bool &onlineState);
+    void settingsChanged();
+    void updatePID();
+    void resetAngle();
+    void activeProfileChanged();
+    void updateOverlay();
+    void updateMasterFromControl(const bool &masterState);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
 
 private:
     Ui::MainWindow *ui;
@@ -76,6 +89,9 @@ private:
     UdpHandler *udpHandler;
     QThread *workerThread;
     GamepadWorker *worker;
+    OverlayWidget* m_overlay;
+
+    QTimer *updateOverlayTimer;
 };
 
 #endif // MAINWINDOW_H

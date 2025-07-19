@@ -1,12 +1,5 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include <QVBoxLayout>
-#include <QMessageBox>
-#include <QDebug>
-#include <QTimer>
-#include <winspool.h>
-#include <QResizeEvent>
-#include "SettingsManager.h"
 
 void setMasterButtonState(QPushButton *button, const bool masterState, const bool isPanelHidden);
 void setRecordButtonState(QPushButton *button, const bool isRecording, const bool isPanelHidden);
@@ -15,9 +8,14 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow),
     udpThread(new QThread(this)),
     workerThread(new QThread(this)),
-    worker(new GamepadWorker())
+    worker(new GamepadWorker()),
+    m_overlay(nullptr)
 {
     ui->setupUi(this);
+    // Инициализируем менеджер настроек один раз при запуске
+    if(!SettingsManager::instance().initialize()) {
+        qCritical() << "Failed to load settings!";
+    }
 
     worker->moveToThread(workerThread);
     workerThread->start();
@@ -64,6 +62,11 @@ MainWindow::MainWindow(QWidget *parent)
     m_label->setScaledContents(true);
     m_label->setAlignment(Qt::AlignCenter);
     m_cameraLayout->addWidget(m_label);
+
+    // Создание и настройка оверлея
+    m_overlay = new OverlayWidget(m_label);
+    m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
+    m_overlay->show();
 
     const QList<CameraFrameInfo*>& cameras = m_camera->getCameras();
     for (CameraFrameInfo* cam : cameras) {
@@ -113,6 +116,13 @@ MainWindow::MainWindow(QWidget *parent)
     UdpTelemetryParser *telemetryParser = new UdpTelemetryParser();
 
     UdpHandler *udpHandler = new UdpHandler(profileManager, telemetryParser, worker);
+
+    udpHandler->settingsChanged();
+
+    connect(settingsDialog, &SettingsDialog::settingsChanged, udpHandler, &UdpHandler::settingsChanged);
+    connect(settingsDialog, &SettingsDialog::settingsChangedPID, this, &MainWindow::updatePID);
+    connect(settingsDialog, &SettingsDialog::settingsChangedAngle, this, &MainWindow::resetAngle);
+
     udpHandler->moveToThread(udpThread);
     udpThread->start();
     connect(udpThread, &QThread::finished, udpHandler, &QObject::deleteLater);
@@ -122,6 +132,18 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onlineStateChanged);
     connect(udpHandler, &UdpHandler::recordingStartStop, this, &MainWindow::startRecord);
     connect(udpHandler, &UdpHandler::takeFrame, this, &MainWindow::on_takeStereoframeButton_clicked);
+
+    SettingsManager &settingsManager = SettingsManager::instance();
+
+    controlsWindow->loadProfile(settingsManager.getLastActiveProfile());
+
+    connect(controlsWindow->profileManager, &ProfileManager::profileNameChange, this, &MainWindow::activeProfileChanged);
+
+    updateOverlayTimer = new QTimer(this);
+    connect(updateOverlayTimer, &QTimer::timeout, this, &MainWindow::updateOverlay);
+    updateOverlayTimer->start(1000/60);
+
+    connect(udpHandler, &UdpHandler::updateMaster, this, &MainWindow::updateMasterFromControl);
 }
 
 MainWindow::~MainWindow()
@@ -136,6 +158,7 @@ MainWindow::~MainWindow()
         m_camera = nullptr;
     }
 
+    delete m_overlay;
     delete ui;
     workerThread->quit();
     workerThread->wait();
@@ -156,6 +179,8 @@ void MainWindow::processFrame(CameraFrameInfo* camera)
     QMutexLocker lock(camera->mutex);
     if (camera->name == "LCamera") {
         m_label->setPixmap(QPixmap::fromImage(camera->img));
+        // Обновляем геометрию оверлея при каждом обновлении изображения
+        m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
     }
 }
 
@@ -302,10 +327,54 @@ void MainWindow::onResize()
 {
     if (m_cameraLayout) {
         m_cameraLayout->update();
+        // Обновляем геометрию оверлея при изменении размера
+        if (m_overlay && m_label) {
+            m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
+        }
     }
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+    // Обновляем геометрию оверлея при изменении размера окна
+    if (m_overlay && m_label) {
+        m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
+    }
+}
+
+void MainWindow::activeProfileChanged(){
+    SettingsManager &settingsManager = SettingsManager::instance();
+    // if (settingsManager){
+    //     return;
+    // }
+    QJsonObject profile = profileManager->getProfile();
+    QString profileName = profile["profileName"].toString();
+    settingsManager.updateLastActiveProfile(profileName);
+    settingsDialog->SaveSetting();
+}
+
+void MainWindow::settingsChanged(){
+
+}
+
+void MainWindow::updatePID(){
+
+}
+void MainWindow::resetAngle(){
+
 }
 
 void MainWindow::onJoystickUpdate(const DualJoystickState &state)
 {
     // qDebug() << state;
+}
+
+void MainWindow::updateOverlay(){
+
+}
+
+void MainWindow::updateMasterFromControl(const bool &masterState){
+    MainWindow::masterState = masterState;
+    setMasterButtonState(ui->masterButton, masterState, isPanelHidden);
 }

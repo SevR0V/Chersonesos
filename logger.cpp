@@ -1,6 +1,4 @@
 #include "logger.h"
-#include <filesystem>
-#include <sstream>
 
 QFile Logger::logFile;
 QMutex Logger::logMutex;

@@ -1,7 +1,7 @@
 #include "video_streamer.h"
 
-VideoStreamer::VideoStreamer(CameraVideoFrameInfo* videoInfo, int port, QObject* parent)
-    : QObject(parent), m_videoInfo(videoInfo), m_port(port), m_server(new QTcpServer(this)), m_isStreaming(false) {
+VideoStreamer::VideoStreamer(StreamFrameInfo* streamInfo, int port, QObject* parent)
+    : QObject(parent), m_streamInfo(streamInfo), m_port(port), m_server(new QTcpServer(this)), m_isStreaming(false) {
     connect(m_server, &QTcpServer::newConnection, this, &VideoStreamer::handleNewConnection);
 }
 
@@ -11,7 +11,7 @@ VideoStreamer::~VideoStreamer() {
 
 void VideoStreamer::startStreaming() {
     if (m_isStreaming) {
-        QString errorMsg = QString("Стриминг уже активен для камеры %1").arg(m_videoInfo->name);
+        QString errorMsg = QString("Стриминг уже активен для камеры %1").arg(m_streamInfo->name);
         qDebug() << errorMsg;
         emit errorOccurred("VideoStreamer", errorMsg);
         return;
@@ -19,7 +19,7 @@ void VideoStreamer::startStreaming() {
 
     if (!m_server->listen(QHostAddress::Any, m_port)) {
         QString errorMsg = QString("Не удалось запустить сервер для камеры %1 на порту %2: %3")
-                               .arg(m_videoInfo->name).arg(m_port).arg(m_server->errorString());
+                               .arg(m_streamInfo->name).arg(m_port).arg(m_server->errorString());
         qDebug() << errorMsg;
         emit errorOccurred("VideoStreamer", errorMsg);
         emit streamingFailed(errorMsg);
@@ -27,7 +27,7 @@ void VideoStreamer::startStreaming() {
     }
 
     m_isStreaming = true;
-    qDebug() << "Стриминг начат для камеры" << m_videoInfo->name << "на порту" << m_port;
+    qDebug() << "Стриминг начат для камеры" << m_streamInfo->name << "на порту" << m_port;
     emit streamingStarted();
 }
 
@@ -49,14 +49,14 @@ void VideoStreamer::closeAllConnections() {
     }
     m_clients.clear();
     m_server->close();
-    qDebug() << "Стриминг остановлен для камеры" << m_videoInfo->name;
+    qDebug() << "Стриминг остановлен для камеры" << m_streamInfo->name;
     emit streamingFinished();
 }
 
 void VideoStreamer::handleNewConnection() {
     QTcpSocket* client = m_server->nextPendingConnection();
     if (!client) {
-        QString errorMsg = QString("Не удалось получить новое соединение для камеры %1").arg(m_videoInfo->name);
+        QString errorMsg = QString("Не удалось получить новое соединение для камеры %1").arg(m_streamInfo->name);
         qDebug() << errorMsg;
         emit errorOccurred("VideoStreamer", errorMsg);
         return;
@@ -68,19 +68,19 @@ void VideoStreamer::handleNewConnection() {
         client->flush();
         m_clients.remove(client);
         client->deleteLater();
-        qDebug() << "Клиент отключился от стриминга камеры" << m_videoInfo->name;
+        qDebug() << "Клиент отключился от стриминга камеры" << m_streamInfo->name;
     });
 
     connect(client, &QTcpSocket::readyRead, this, [=]() {
         QByteArray request = client->readAll();
         QString requestStr = QString::fromUtf8(request);
-        if (requestStr.contains("GET /" + m_videoInfo->name)) {
+        if (requestStr.contains("GET /" + m_streamInfo->name)) {
             m_clients.insert(client);
             sendMJPEGHeader(client);
-            qDebug() << "Клиент подключился к стримингу камеры" << m_videoInfo->name;
+            qDebug() << "Клиент подключился к стримингу камеры" << m_streamInfo->name;
             streamFrames(client);
         } else {
-            QString errorMsg = QString("Неверный запрос для камеры %1: %2").arg(m_videoInfo->name).arg(requestStr);
+            QString errorMsg = QString("Неверный запрос для камеры %1: %2").arg(m_streamInfo->name).arg(requestStr);
             qDebug() << errorMsg;
             emit errorOccurred("VideoStreamer", errorMsg);
             client->write("HTTP/1.1 404 Not Found\r\n\r\n");
@@ -111,14 +111,14 @@ void VideoStreamer::streamFrames(QTcpSocket* client) {
     while (m_isStreaming && client->state() == QAbstractSocket::ConnectedState) {
         cv::Mat frame;
         {
-            QMutexLocker locker(m_videoInfo->mutex);
-            int latestIndex = (m_videoInfo->bufferIndex == 0) ? 4 : m_videoInfo->bufferIndex - 1;
-            if (!m_videoInfo->frameBuffer.empty() && !m_videoInfo->frameBuffer[latestIndex].empty()) {
-                frame = m_videoInfo->frameBuffer[latestIndex].clone();
+            QMutexLocker locker(m_streamInfo->mutex);
+            if (!m_streamInfo->img.empty()) {
+                frame = m_streamInfo->img.clone();
             }
         }
 
         if (!frame.empty()) {
+            cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
             try {
                 std::vector<uchar> buffer;
                 std::vector<int> compression_params;
@@ -139,16 +139,16 @@ void VideoStreamer::streamFrames(QTcpSocket* client) {
                 client->flush();
             } catch (const cv::Exception& e) {
                 QString errorMsg = QString("Ошибка кодирования кадра для стриминга камеры %1: %2")
-                                       .arg(m_videoInfo->name).arg(e.what());
+                                       .arg(m_streamInfo->name).arg(e.what());
                 qDebug() << errorMsg;
                 emit errorOccurred("VideoStreamer", errorMsg);
                 client->disconnectFromHost();
                 return;
             }
         } else {
-            qDebug() << "Пропущен пустой кадр для стриминга камеры" << m_videoInfo->name;
+            qDebug() << "Пропущен пустой кадр для стриминга камеры" << m_streamInfo->name;
         }
 
-        QThread::msleep(33);
+        QThread::msleep(50);
     }
 }
