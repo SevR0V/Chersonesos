@@ -51,8 +51,8 @@ bool SettingsManager::initialize(const QString& profileName)
     SettingsManager::instance().setInt("comboBoxCam", 0);
     SettingsManager::instance().setInt("spinBoxTimeCam", 0);
     SettingsManager::instance().setInt("spinBoxMaxCam", 0);
-    SettingsManager::instance().setInt("Cam_angle_minus", 0);
-    SettingsManager::instance().setInt("Cam_angle_plus", 0);
+    SettingsManager::instance().setInt("Cam_angle_minus", -90);
+    SettingsManager::instance().setInt("Cam_angle_plus", 90);
 
     SettingsManager::instance().setDouble("RollkP", 5);
     SettingsManager::instance().setDouble("RollkI", 0);
@@ -88,10 +88,6 @@ bool SettingsManager::initialize(const QString& profileName)
     m_initialized = true;
     return true;
 }
-
-
-
-
 
 QJsonValue SettingsManager::get(const QString& key, const QJsonValue& defaultValue) const
 {

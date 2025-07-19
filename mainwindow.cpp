@@ -17,6 +17,17 @@ MainWindow::MainWindow(QWidget *parent)
         qCritical() << "Failed to load settings!";
     }
 
+    isPanelHidden = false;
+    isRecording = false;
+    masterState = false;
+    powerLimit = 0;
+    stabEnabled = false;
+    stabRollEnabled = false;
+    stabPitchEnabled = false;
+    stabYawEnabled = false;
+    stabDepthEnabled = false;
+    camAngle = 0;
+
     worker->moveToThread(workerThread);
     workerThread->start();
     connect(workerThread, &QThread::finished, worker, &QObject::deleteLater);
@@ -108,9 +119,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->startRecordButton->setIcon(icon);
     ui->startRecordButton->setIconSize(QSize(14, 14));
 
-    isPanelHidden = false;
-    isRecording = false;
-    masterState = false;
+
     isStereoRecording = ui->recordStereoCheckBox->isChecked();
 
     UdpTelemetryParser *telemetryParser = new UdpTelemetryParser();
@@ -139,11 +148,16 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(controlsWindow->profileManager, &ProfileManager::profileNameChange, this, &MainWindow::activeProfileChanged);
 
-    updateOverlayTimer = new QTimer(this);
-    connect(updateOverlayTimer, &QTimer::timeout, this, &MainWindow::updateOverlay);
-    updateOverlayTimer->start(1000/60);
-
     connect(udpHandler, &UdpHandler::updateMaster, this, &MainWindow::updateMasterFromControl);
+    connect(udpHandler, &UdpHandler::updatePowerLimit, ui->powerSlider, &QSlider::setValue);
+    connect(ui->powerSlider, &QSlider::valueChanged, udpHandler, &UdpHandler::updatePowerLimitFromGui);
+    connect(ui->powerSlider, &QSlider::valueChanged, [this](const int &value){
+        this->powerLimit = value;
+    });
+    connect(this, &MainWindow::masterChanged, udpHandler, &UdpHandler::masterChangedGui);
+    connect(settingsDialog, &SettingsDialog::settingsChangedPID, udpHandler, &UdpHandler::updatePID);
+    connect(m_overlay, &OverlayWidget::requestOverlayDataUpdate, this, &MainWindow::updateOverlayData);
+    connect(telemetryParser, &UdpTelemetryParser::telemetryReceived, this, &MainWindow::telemetryReceived);
 }
 
 MainWindow::~MainWindow()
@@ -169,8 +183,10 @@ MainWindow::~MainWindow()
 void MainWindow::onlineStateChanged(const bool &onlineState){
     if(onlineState){
         ui->onlineLable->setText("В сети");
+        ui->onlineLable->setStyleSheet("QLabel { color : green; }");
     }else{
         ui->onlineLable->setText("Не в сети");
+        ui->onlineLable->setStyleSheet("QLabel { color : red; }");
     }
 }
 
@@ -266,6 +282,7 @@ void MainWindow::masterSwitch()
 {
     masterState = !masterState;
     setMasterButtonState(ui->masterButton, masterState, isPanelHidden);
+    emit masterChanged(masterState);
 }
 
 void setMasterButtonState(QPushButton *button, const bool masterState, const bool isPanelHidden)
@@ -360,6 +377,7 @@ void MainWindow::settingsChanged(){
 
 void MainWindow::updatePID(){
 
+
 }
 void MainWindow::resetAngle(){
 
@@ -370,11 +388,35 @@ void MainWindow::onJoystickUpdate(const DualJoystickState &state)
     // qDebug() << state;
 }
 
-void MainWindow::updateOverlay(){
-
+void MainWindow::updateOverlayData(){
+    m_overlay->telemetryUpdate(telemetryPacket);
+    m_overlay->controlsUpdate(stabEnabled,
+                              stabRollEnabled,
+                              stabPitchEnabled,
+                              stabYawEnabled,
+                              stabDepthEnabled,
+                              masterState,
+                              powerLimit,
+                              camAngle);
 }
 
 void MainWindow::updateMasterFromControl(const bool &masterState){
     MainWindow::masterState = masterState;
     setMasterButtonState(ui->masterButton, masterState, isPanelHidden);
+}
+
+float mapValueF(float x, float in_min, float in_max, float out_min, float out_max)
+{
+    if (in_max == in_min)
+        return out_min; // защита от деления на 0
+
+    return float(x - in_min) * (out_max - out_min) / float(in_max - in_min) + out_min;
+}
+
+void MainWindow::telemetryReceived(const TelemetryPacket &packet){
+    telemetryPacket = packet;
+    float tCamAngle = packet.cameraAngle;
+    float tCamMin = SettingsManager::instance().getDouble("Cam_angle_minus");
+    float tCamMax = SettingsManager::instance().getDouble("Cam_angle_plus");
+    camAngle = mapValueF(tCamAngle, tCamMin, tCamMax, -90, 90);
 }

@@ -121,7 +121,7 @@
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_5">
              <item>
-              <layout class="QGridLayout" name="gridLayout" rowminimumheight="22,22,22,22,22,22">
+              <layout class="QGridLayout" name="gridLayout" rowminimumheight="22,22,22,22,22">
                <property name="sizeConstraint">
                 <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
                </property>
@@ -472,7 +472,14 @@
                 </widget>
                </item>
                <item>
-                <widget class="QSpinBox" name="spinBox_Cam_angle_plus"/>
+                <widget class="QSpinBox" name="spinBox_Cam_angle_plus">
+                 <property name="minimum">
+                  <number>-360</number>
+                 </property>
+                 <property name="maximum">
+                  <number>360</number>
+                 </property>
+                </widget>
                </item>
               </layout>
              </item>
@@ -486,7 +493,14 @@
                 </widget>
                </item>
                <item>
-                <widget class="QSpinBox" name="spinBox_Cam_angle_minus"/>
+                <widget class="QSpinBox" name="spinBox_Cam_angle_minus">
+                 <property name="minimum">
+                  <number>-360</number>
+                 </property>
+                 <property name="maximum">
+                  <number>360</number>
+                 </property>
+                </widget>
                </item>
               </layout>
              </item>

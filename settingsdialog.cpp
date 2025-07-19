@@ -1,12 +1,9 @@
 #include "settingsdialog.h"
 #include "ui_settingsdialog.h"
-#include "iplineedit.h"
-#include "lineeditutils.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFile>
 #include <QKeyEvent>
-#include "SettingsManager.h"
 #include <QRegularExpressionValidator>
 #include <QShortcut>
 
@@ -35,7 +32,7 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     bool enabled=false;
     ui->groupBox_5->setVisible(enabled);
     QShortcut *shortcutF2 = new QShortcut(QKeySequence(Qt::Key_F2), this);
-    connect(shortcutF2, &QShortcut::activated, this, [this, &enabled]() {
+    connect(shortcutF2, &QShortcut::activated, [this, &enabled]() {
         qDebug() << "F2 pressed via shortcut";
         enabled= !enabled;
 
@@ -45,10 +42,8 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     connect(this, &SettingsDialog::settingsChanged, []() {
         qDebug() << "Сигнал settingsChanged() был вызван!";
     });
-    // Проверка сигнала
-    connect(this, &SettingsDialog::settingsChangedPID, []() {
-        qDebug() << "Сигнал settingsChangedPID() был вызван!";
-    });
+
+    connect(ui->pushButton_UpdatePID, &QPushButton::pressed, this, &SettingsDialog::onPushButtonUpdatePIDClicked);
 }
 void saveLineEditSettings(const QString& key, QLineEdit* lineEdit) {
     SettingsManager::instance().setString(key, lineEdit->text());
@@ -123,7 +118,6 @@ void SettingsDialog::SaveSetting()
 
     SettingsManager::instance().saveToFile("settings.json");
     emit settingsChanged();
-
 }
 void SettingsDialog::onButtonClicked(QAbstractButton *button) {
     // Определяем какая кнопка была нажата
@@ -134,14 +128,15 @@ void SettingsDialog::onButtonClicked(QAbstractButton *button) {
     }
 }
 
-void SettingsDialog::on_pushButton_UpdatePID_clicked()
+void SettingsDialog::onPushButtonUpdatePIDClicked()
 {
-    // qDebug() << "Нажата UpdatePID";
+    qDebug() << "Нажата UpdatePID";
     SaveSetting();
+    // SettingsManager &settingsManager = SettingsManager::instance();
     emit settingsChangedPID();
 }
 
-void SettingsDialog::on_pushButton_reset_corn_clicked()
+void SettingsDialog::onPushButtonResetAngleClicked()
 {
     // ui->doubleSpinBox_kP_Roll->setValue(0);
     // ui->doubleSpinBox_kI_Roll->setValue(0);
@@ -157,7 +152,7 @@ void SettingsDialog::on_pushButton_reset_corn_clicked()
 }
 
 
-void SettingsDialog::on_pushButton_clicked()
+void SettingsDialog::onPushButtonClicked()
 {
 
 }

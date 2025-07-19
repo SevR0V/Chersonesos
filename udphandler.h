@@ -54,6 +54,7 @@ public slots:
     void settingsChanged();
     void masterChangedGui(const bool &masterState);
     void updatePowerLimitFromGui(const int &powerLimit);
+    void updatePID();
 
 private slots:
     void onReadyRead();

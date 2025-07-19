@@ -8,6 +8,7 @@
 #include <QAbstractButton>
 #include "profilemanager.h"
 #include <QTabWidget>
+#include "SettingsManager.h"
 
 
 namespace Ui {
@@ -28,15 +29,12 @@ signals:
     void settingsChanged();
     void settingsChangedPID();
     void settingsChangedAngle();
+
 private slots:
     void onButtonClicked(QAbstractButton *button);
-
-
-    void on_pushButton_UpdatePID_clicked();
-
-    void on_pushButton_reset_corn_clicked();
-
-    void on_pushButton_clicked();
+    void onPushButtonUpdatePIDClicked();
+    void onPushButtonResetAngleClicked();
+    void onPushButtonClicked();
 
 private:
     Ui::SettingsDialog *ui;

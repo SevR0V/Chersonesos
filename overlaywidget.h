@@ -3,7 +3,10 @@
 
 #include <QWidget>
 #include <QPainter>
+#include <QTimer>
 #include "udptelemetryparser.h"
+#include <QColor>
+#include <QPoint>
 
 class OverlayWidget : public QWidget
 {
@@ -12,22 +15,34 @@ class OverlayWidget : public QWidget
 public:
     explicit OverlayWidget(QWidget *parent = nullptr);
     void telemetryUpdate(TelemetryPacket& telemetry);
-    void controlsUpdate(bool& stabRoll,
-                        bool& stabPitch,
-                        bool& stabYaw,
-                        bool& stabDepth,
-                        bool& masterFlag,
-                        float& powerLimit);
+    void controlsUpdate(const bool& stabEnabled,
+                        const bool& stabRoll,
+                        const bool& stabPitch,
+                        const bool& stabYaw,
+                        const bool& stabDepth,
+                        const bool& masterFlag,
+                        const float& powerLimit,
+                        const float& camAngle);
 
 public slots:
 
+signals:
+    void requestOverlayDataUpdate();
+
 private:
-    float CENTER_ALIGMENT_X = 0.5f;
-    float CENTER_ALIGMENT_Y = 0.5f;
-    float DEPTH_ALIGMENT_X = 0.75f;
-    float DEPTH_ALIGMENT_Y = 0.5f;
-    float COMPASS_ALIGMENT_X = 0.5f;
-    float COMPASS_ALIGMENT_y = 0.15f;
+    QTimer *frameTimer;
+
+    void updateOverlay();
+
+    bool ostabEnabled;
+    bool ostabRoll;
+    bool ostabPitch;
+    bool ostabYaw;
+    bool ostabDepth;
+    bool omasterFlag;
+    float opowerLimit;
+    float ocamAngle;
+    QWidget *parentWidget;
 
 protected:
     void paintEvent(QPaintEvent *event) override;

@@ -307,7 +307,7 @@ void ControlWindow::onPrimaryButtonPressed(int button)
 
 void ControlWindow::onPrimaryAxisMoved(int axis, Sint16 value)
 {
-    qDebug() << "Primary Axis" << axis << ":" << value;
+    // qDebug() << "Primary Axis" << axis << ":" << value;
     if(! activeInputName.contains("primary", Qt::CaseInsensitive)) return;
     if(activeInputName.contains("but", Qt::CaseInsensitive)) return;
     ControlWindow::profileActionDetected("axis", axis);

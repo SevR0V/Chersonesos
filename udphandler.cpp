@@ -205,6 +205,7 @@ QByteArray UdpHandler::packControlData()
     controlFlags |= quint64(cPosReset)      << 6;
     controlFlags |= quint64(cResetIMU)      << 7;
     controlFlags |= quint64(cUpdatePID)     << 8;
+    if(cUpdatePID) cUpdatePID = false;
 
     //Data
     QList<float> floats = {
@@ -571,11 +572,26 @@ void UdpHandler::incrementValues(){
     cPowerLimit = cPowerLimit + float(iPowerLimit/50.0f);
     cPowerLimit = constrainf(cPowerLimit, 0.0f, 1.0f);
     emit updatePowerLimit(std::round(cPowerLimit * 100));
-
-    qDebug() << cPowerLimit << " inc: " <<iPowerLimit;
 }
 
 
 void UdpHandler::updatePowerLimitFromGui(const int &powerLimit){
     cPowerLimit = powerLimit / 100.0f;
+}
+
+void UdpHandler::updatePID(){
+    SettingsManager &settingsManager = SettingsManager::instance();
+    RollKP = settingsManager.getDouble("RollkP");
+    RollKI = settingsManager.getDouble("RollkI");
+    RollKD = settingsManager.getDouble("RollkD");
+    PitchKP = settingsManager.getDouble("PitchkP");
+    PitchKI = settingsManager.getDouble("PitchkI");
+    PitchKD = settingsManager.getDouble("PitchkD");
+    YawKP = settingsManager.getDouble("YawkP");
+    YawKI = settingsManager.getDouble("YawkI");
+    YawKD = settingsManager.getDouble("YawkD");
+    DepthKP = settingsManager.getDouble("DepthkP");
+    DepthKI = settingsManager.getDouble("DepthkI");
+    DepthKD = settingsManager.getDouble("DepthkD");
+    cUpdatePID = true;
 }

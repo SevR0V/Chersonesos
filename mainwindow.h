@@ -43,6 +43,7 @@ signals:
     void startStreamingSignal(const QString& cameraName, int port);
     void stopStreamingSignal(const QString& cameraName);
     void stereoShotSignal();
+    void masterChanged(const bool& masterState);
 
 private slots:
     void processFrame(CameraFrameInfo* camera);
@@ -57,8 +58,9 @@ private slots:
     void updatePID();
     void resetAngle();
     void activeProfileChanged();
-    void updateOverlay();
+    void updateOverlayData();
     void updateMasterFromControl(const bool &masterState);
+    void telemetryReceived(const TelemetryPacket &packet);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -80,9 +82,17 @@ private:
     bool isPanelHidden;
     bool isRecording;
     bool masterState;
+    int powerLimit;
+    float camAngle;
+
+    bool stabEnabled;
+    bool stabRollEnabled;
+    bool stabPitchEnabled;
+    bool stabYawEnabled;
+    bool stabDepthEnabled;
 
     UdpTelemetryParser *telemetryParser;
-
+    TelemetryPacket telemetryPacket;
     ProfileManager *profileManager;
 
     QThread *udpThread;
@@ -90,8 +100,6 @@ private:
     QThread *workerThread;
     GamepadWorker *worker;
     OverlayWidget* m_overlay;
-
-    QTimer *updateOverlayTimer;
 };
 
 #endif // MAINWINDOW_H
