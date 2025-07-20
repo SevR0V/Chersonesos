@@ -569,11 +569,10 @@ float constrainf(const float value, const float lower_limit, const float upper_l
 }
 
 void UdpHandler::incrementValues(){
-    cPowerLimit = cPowerLimit + float(iPowerLimit/50.0f);
-    cPowerLimit = constrainf(cPowerLimit, 0.0f, 1.0f);
+    float powLim = cPowerLimit + float(iPowerLimit/50.0f);
+    cPowerLimit = constrainf(powLim, 0.0f, 1.0f);
     emit updatePowerLimit(std::round(cPowerLimit * 100));
 }
-
 
 void UdpHandler::updatePowerLimitFromGui(const int &powerLimit){
     cPowerLimit = powerLimit / 100.0f;
@@ -594,4 +593,22 @@ void UdpHandler::updatePID(){
     DepthKI = settingsManager.getDouble("DepthkI");
     DepthKD = settingsManager.getDouble("DepthkD");
     cUpdatePID = true;
+}
+
+void UdpHandler::stabStateChanged(const bool& stabAllState,
+                                  const bool& stabRollState,
+                                  const bool& stabPitchState,
+                                  const bool& stabYawState,
+                                  const bool& stabDepthState){
+    if(stabAllState){
+        cRollStab = stabRollState;
+        cPitchStab = stabPitchState;
+        cYawStab = stabYawState;
+        cDepthStab = stabDepthState;
+    }else{
+        cRollStab = false;
+        cPitchStab = false;
+        cYawStab = false;
+        cDepthStab = false;
+    }
 }

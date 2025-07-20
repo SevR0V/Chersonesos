@@ -35,7 +35,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(workerThread, &QThread::finished, worker, &GamepadWorker::deleteLater);
     connect(worker, &GamepadWorker::joysticksUpdated, this, &MainWindow::onJoystickUpdate);
 
-
+    connect(ui->enableStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
 
     // Создание и настройка потока Camera
     QThread* cameraThread = new QThread(this);
@@ -99,7 +99,7 @@ MainWindow::MainWindow(QWidget *parent)
     controlsWindow = new ControlWindow(worker, profileManager);
     settingsDialog = new SettingsDialog;
 
-    connect(ui->controlsButton, &QPushButton::pressed, [this]() { controlsWindow->show(); });
+    connect(ui->controlsButton, &QPushButton::pressed, this, [this]() { controlsWindow->show(); });
     connect(ui->settingsButton, &QPushButton::pressed, [this]() { settingsDialog->show(); });
     connect(ui->startRecordButton, &QPushButton::pressed, this, &MainWindow::startRecord);
     connect(ui->hideShowButton, &QPushButton::pressed, this, &MainWindow::showHideLeftPanel);
@@ -120,7 +120,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->startRecordButton->setIconSize(QSize(14, 14));
 
 
-    isStereoRecording = ui->recordStereoCheckBox->isChecked();
+    // isStereoRecording = ui->recordStereoCheckBox->isChecked();
 
     UdpTelemetryParser *telemetryParser = new UdpTelemetryParser();
 
@@ -158,6 +158,12 @@ MainWindow::MainWindow(QWidget *parent)
     connect(settingsDialog, &SettingsDialog::settingsChangedPID, udpHandler, &UdpHandler::updatePID);
     connect(m_overlay, &OverlayWidget::requestOverlayDataUpdate, this, &MainWindow::updateOverlayData);
     connect(telemetryParser, &UdpTelemetryParser::telemetryReceived, this, &MainWindow::telemetryReceived);
+
+    connect(ui->enableDepthStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
+    connect(ui->enableRollStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
+    connect(ui->enablePitchStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
+    connect(ui->enableYawStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
+    connect(this, &MainWindow::stabUpdated, udpHandler, &UdpHandler::stabStateChanged);
 }
 
 MainWindow::~MainWindow()
@@ -212,15 +218,22 @@ void MainWindow::showHideLeftPanel()
         ui->startRecordButton->setText("");
         ui->controlsButton->setText("");
         ui->settingsButton->setText("");
+        ui->openStereoProcessingButton->setText("");
 
         ui->onlineLable->hide();
-        ui->recordStereoCheckBox->hide();
+        // ui->recordStereoCheckBox->hide();
         ui->powerGroupBox->hide();
         ui->rovStateLabel->hide();
         ui->powerLabel->hide();
         ui->recordLabel->hide();
         ui->settingsLabel->hide();
         ui->powerBotLine->hide();
+        ui->enableStabCheckBox->hide();
+        ui->enableDepthStabCheckBox->hide();
+        ui->enableYawStabCheckBox->hide();
+        ui->enableRollStabCheckBox->hide();
+        ui->enablePitchStabCheckBox->hide();
+        ui->stabLabel->hide();
     } else {
         QIcon leftArrow(":/Resources/Icons/left_arrow.ico");
         ui->hideShowButton->setIcon(leftArrow);
@@ -231,15 +244,22 @@ void MainWindow::showHideLeftPanel()
         ui->controlsButton->setText("Управление");
         ui->settingsButton->setText("Настройки");
         ui->onlineLable->setText("Не в сети");
+        ui->openStereoProcessingButton->setText("Обработка \nстереокадров");
 
         ui->onlineLable->show();
-        ui->recordStereoCheckBox->show();
+        // ui->recordStereoCheckBox->show();
         ui->powerGroupBox->show();
         ui->powerBotLine->show();
         ui->rovStateLabel->show();
         ui->powerLabel->show();
         ui->recordLabel->show();
         ui->settingsLabel->show();
+        ui->enableStabCheckBox->show();
+        ui->enableDepthStabCheckBox->show();
+        ui->enableYawStabCheckBox->show();
+        ui->enableRollStabCheckBox->show();
+        ui->enablePitchStabCheckBox->show();
+        ui->stabLabel->show();
     }
 }
 
@@ -302,9 +322,9 @@ void setMasterButtonState(QPushButton *button, const bool masterState, const boo
 
 void MainWindow::startRecord()
 {
-    ui->recordStereoCheckBox->setDisabled(!isRecording);
+    // ui->recordStereoCheckBox->setDisabled(!isRecording);
     isRecording = !isRecording;
-    isStereoRecording = ui->recordStereoCheckBox->isChecked();
+    // isStereoRecording = ui->recordStereoCheckBox->isChecked();
 
     setRecordButtonState(ui->startRecordButton, isRecording, isPanelHidden);
 
@@ -419,4 +439,28 @@ void MainWindow::telemetryReceived(const TelemetryPacket &packet){
     float tCamMin = SettingsManager::instance().getDouble("Cam_angle_minus");
     float tCamMax = SettingsManager::instance().getDouble("Cam_angle_plus");
     camAngle = mapValueF(tCamAngle, tCamMin, tCamMax, -90, 90);
+}
+
+void MainWindow::setStabState(){
+    stabEnabled = ui->enableStabCheckBox->isChecked();
+    if(stabEnabled){
+        ui->enableRollStabCheckBox->setEnabled(true);
+        ui->enablePitchStabCheckBox->setEnabled(true);
+        ui->enableYawStabCheckBox->setEnabled(true);
+        ui->enableDepthStabCheckBox->setEnabled(true);
+        stabRollEnabled = ui->enableRollStabCheckBox->isChecked();
+        stabPitchEnabled = ui->enablePitchStabCheckBox->isChecked();
+        stabYawEnabled = ui->enableYawStabCheckBox->isChecked();
+        stabDepthEnabled = ui->enableDepthStabCheckBox->isChecked();
+    } else {
+        ui->enableRollStabCheckBox->setEnabled(false);
+        ui->enablePitchStabCheckBox->setEnabled(false);
+        ui->enableYawStabCheckBox->setEnabled(false);
+        ui->enableDepthStabCheckBox->setEnabled(false);
+        stabRollEnabled = false;
+        stabPitchEnabled = false;
+        stabYawEnabled = false;
+        stabDepthEnabled = false;
+    }
+    emit stabUpdated(stabEnabled, stabRollEnabled, stabPitchEnabled, stabYawEnabled, stabDepthEnabled);
 }

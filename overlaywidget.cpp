@@ -316,8 +316,8 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     int camAngleRulerHeight = 150;
     int camAngleRulerNotchSpacing = camAngleRulerHeight / camAngleRulerNumNotches;
     QPoint camAngleRulerPos(80, screenHeight - camAngleRulerHeight - camAngleRulerHeight / 3);
-    int camAngleRulerShortNotch = 5;
-    int camAngleRulerLongNotch = 12;
+    int camAngleRulerShortNotch = 4;
+    int camAngleRulerLongNotch = 9;
     int camAngleRullerLineWidth = 2;
     QColor camAngleRulerColor = defaultColor;
     bool camAngleRulerLeft = true;
@@ -356,6 +356,52 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
                       camAngleRulerPointerOffset,
                       camAngleRuleTitle,
                       camAngleRulerTitleOffset);
+
+    //Вертикальная линейка дифферента
+    int pitchRulerNumNotches = 31;
+    int pitchRulerHeight = screenHeight / 2;
+    int pitchRulerNotchSpacing = pitchRulerHeight / pitchRulerNumNotches;
+    QPoint pitchRulerPos(screenWidth / 3, screenHeight / 2 - pitchRulerHeight / 2 + pitchRulerNotchSpacing);
+    int pitchRulerShortNotch = 5;
+    int pitchRulerLongNotch = 12;
+    int pitchRullerLineWidth = 2;
+    QColor pitchRulerColor = defaultColor;
+    bool pitchRulerLeft = true;
+    bool pitchRulerDrawLabels = true;
+    int pitchRulerLabelsOffset = 4;
+    bool pitchRulerDrawPoimter = true;
+    int pitchRulerPointerSize = 8;
+    bool pitchRulerPointerHollow = true;
+    int pitchRulerPointerOffset = -5;
+    double pitchRulerPointerPos = (double(90.0f - oPitch) / 180.0f);
+    QString pitchRulerPointerValue = QString::number(std::round(oPitch));
+    QString pitchRuleTitle = "Дифферент:";
+    int pitchRulerTitleOffset = -20;
+
+    drawVerticalRuler(&painter,
+                      pitchRulerPos,
+                      pitchRulerNumNotches,        // 30 делений
+                      pitchRulerNotchSpacing,        // расстояние между рисками = 10 пикселей
+                      pitchRulerShortNotch,         // обычная риска
+                      pitchRulerLongNotch,        // длинная риска
+                      pitchRullerLineWidth,         // толщина линии
+                      pitchRulerColor,
+                      pitchRulerLeft,
+                      pitchRulerDrawLabels,
+                      pitchRulerLabelsOffset,
+                      labelFont,
+                      [](int i) {   // форматтер
+                          // return QString("%1 m").arg(i * 10.0, 0, 'i', 1);  // Например: 0.0 cm, 2.5 cm ...
+                          return QString::number(-(i * 6 - 90));
+                      },
+                      pitchRulerDrawPoimter,
+                      pitchRulerPointerPos,
+                      pitchRulerPointerValue,
+                      pitchRulerPointerSize,
+                      pitchRulerPointerHollow,
+                      pitchRulerPointerOffset,
+                      pitchRuleTitle,
+                      pitchRulerTitleOffset);
     // // Рисуем оверлей на всей доступной области виджета
     // painter.setBrush(QBrush(QColor(255, 0, 0, 100))); // Будет красить
     // painter.drawRect(rect()); // Используем rect() для получения текущих размеров виджета
@@ -372,7 +418,10 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
 }
 
 void OverlayWidget::telemetryUpdate(TelemetryPacket& telemetry){
-
+    oPitch = telemetry.pitch;
+    oRoll = telemetry.roll;
+    oYaw = telemetry.yaw;
+    oDepth = telemetry.depth;
 }
 
 void OverlayWidget::controlsUpdate(const bool& stabEnabled,

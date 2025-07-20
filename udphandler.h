@@ -55,6 +55,11 @@ public slots:
     void masterChangedGui(const bool &masterState);
     void updatePowerLimitFromGui(const int &powerLimit);
     void updatePID();
+    void stabStateChanged(const bool& stabAllState,
+                          const bool& stabRollState,
+                          const bool& stabPitchState,
+                          const bool& stabYawState,
+                          const bool& stabDepthState);
 
 private slots:
     void onReadyRead();

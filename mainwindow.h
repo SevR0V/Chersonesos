@@ -44,6 +44,11 @@ signals:
     void stopStreamingSignal(const QString& cameraName);
     void stereoShotSignal();
     void masterChanged(const bool& masterState);
+    void stabUpdated(const bool& stabAllState,
+                     const bool& stabRollState,
+                     const bool& stabPitchState,
+                     const bool& stabYawState,
+                     const bool& stabDepthState);
 
 private slots:
     void processFrame(CameraFrameInfo* camera);
@@ -61,6 +66,7 @@ private slots:
     void updateOverlayData();
     void updateMasterFromControl(const bool &masterState);
     void telemetryReceived(const TelemetryPacket &packet);
+    void setStabState();
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;

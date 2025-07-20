@@ -42,6 +42,10 @@ private:
     bool omasterFlag;
     float opowerLimit;
     float ocamAngle;
+    float oPitch;
+    float oRoll;
+    float oYaw;
+    float oDepth;
     QWidget *parentWidget;
 
 protected:
