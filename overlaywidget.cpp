@@ -148,7 +148,15 @@ void drawVerticalRuler(QPainter* painter,
                        bool drawLabels = false,
                        int labelOffset = 4,
                        const QFont& font = QFont(),
-                       std::function<QString(int)> labelFormatter = nullptr) {
+                       std::function<QString(int)> labelFormatter = nullptr,
+                       bool drawPointer = false,
+                       double pointerPosNormalized = 0.0,
+                       QString pointerLabel = "",
+                       int pointerSize = 8,
+                       bool hollowPointer = false,
+                       int pointerOffset = 4,
+                       QString rulerTitle = "",
+                       int titleOffset = 4) {
     if (!painter || totalDivisions <= 0 || step <= 0)
         return;
 
@@ -189,6 +197,64 @@ void drawVerticalRuler(QPainter* painter,
     if (drawLabels) {
         painter->setFont(oldFont);
     }
+
+    if (drawPointer && pointerPosNormalized >= 0.0 && pointerPosNormalized <= 1.0) {
+        int rulerHeight = (totalDivisions - 1) * step;
+        int pointerY = topCenter.y() + static_cast<int>(pointerPosNormalized * rulerHeight);
+
+        // Стрелка на противоположной стороне от надписей
+        bool pointerLeft = !alignLeft;
+
+        int px = topCenter.x();
+        int halfHeight = pointerSize / 2;
+
+        // Кончик стрелки у шкалы, основание — снаружи
+        int tipX = pointerLeft
+                       ? px - longTickLength - pointerOffset
+                       : px + longTickLength + pointerOffset;
+
+        int baseX = pointerLeft
+                        ? tipX - pointerSize
+                        : tipX + pointerSize;
+
+        // Формируем треугольник-стрелку
+        QPolygon arrow;
+        arrow << QPoint(tipX, pointerY)
+              << QPoint(baseX, pointerY - halfHeight)
+              << QPoint(baseX, pointerY + halfHeight);
+
+        if (hollowPointer) {
+            painter->setBrush(Qt::NoBrush);
+            painter->drawPolygon(arrow);
+        } else {
+            painter->setBrush(color);
+            painter->drawPolygon(arrow);
+        }
+
+        // Подпись возле основания (вне шкалы)
+        QFontMetrics fm = painter->fontMetrics();
+        QRect textRect = fm.boundingRect(pointerLabel);
+
+        int textX = pointerLeft
+                        ? baseX - textRect.width() - 4
+                        : baseX + 4;
+
+        int textY = pointerY + textRect.height() / 2 - fm.descent();
+
+        painter->drawText(QPoint(textX, textY), pointerLabel);
+    }
+    if (!rulerTitle.isEmpty()) {
+        QFontMetrics fm = painter->fontMetrics();
+        QRect titleRect = fm.boundingRect(rulerTitle);
+
+        int textX = alignLeft
+                        ? topCenter.x() - longTickLength - titleOffset - titleRect.width()
+                        : topCenter.x() + longTickLength + titleOffset;
+
+        int textY = topCenter.y() - step / 2 - 5;
+
+        painter->drawText(QPoint(textX, textY), rulerTitle);
+    }
 }
 
 void OverlayWidget::paintEvent(QPaintEvent *event)
@@ -208,13 +274,16 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     int centerY = screenHeight/2;
     QPoint center(centerX, centerY);
 
+    //Перекрестие - центр камеры
     int crosshairSize = 20;
     int crosshairGap = crosshairSize/3;
-    int crosshairLineWidth = 2;
+    int crosshairLineWidth = 1;
     QColor crosshairColor = defaultColor;
 
     drawCrosshair(&painter, center, crosshairSize, crosshairLineWidth, crosshairGap, crosshairColor);
 
+    //Квадрат - указатель направления аппарата
+    //Квадрат переключается на стрелку, если камера отклонена так, что направление аппарата вне видимости (помогает с ориентированием)
     ArrowMode camLook = ArrowMode::None;
     int pixInDeg = screenHeight / CameraVerticalAngle;
     int camY = centerY + ocamAngle * pixInDeg;
@@ -231,7 +300,7 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     int dirRectSize = crosshairSize * 2 + 20;
     int dirRectRadis = 10;
     int dirRectLineLen = (dirRectSize - crosshairSize * 2) / 2 - 5;
-    int dirRectLineWidth = 2;
+    int dirRectLineWidth = 1;
     QColor dirRectColor = defaultColor;
     QColor dirArrowsColor = defaultColor;
     int arrowsLenghts = 20;
@@ -242,26 +311,53 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     else
         drawArrowLines(&painter, dirRectCenter, camLook, arrowsLenghts, arrowsOffset, dirRectLineWidth, dirArrowsColor);
 
-    int numDepthNumNotches = 31;
-    int depthRullerSpacing = (screenHeight - (screenHeight / 5) * 2) / numDepthNumNotches;
+    //статическая линейка для угла камеры
+    int camAngleRulerNumNotches = 11;
+    int camAngleRulerHeight = 150;
+    int camAngleRulerNotchSpacing = camAngleRulerHeight / camAngleRulerNumNotches;
+    QPoint camAngleRulerPos(80, screenHeight - camAngleRulerHeight - camAngleRulerHeight / 3);
+    int camAngleRulerShortNotch = 5;
+    int camAngleRulerLongNotch = 12;
+    int camAngleRullerLineWidth = 2;
+    QColor camAngleRulerColor = defaultColor;
+    bool camAngleRulerLeft = true;
+    bool camAngleRulerDrawLabels = true;
+    int camAngleRulerLabelsOffset = 4;
+    bool camAngleRulerDrawPoimter = true;
+    int camAngleRulerPointerSize = 8;
+    bool camAngleRulerPointerHollow = true;
+    int camAngleRulerPointerOffset = -5;
+    double camAngleRulerPointerPos = (double(90.0f - ocamAngle) / 180.0f);
+    QString camAngleRulerPointerValue = QString::number(std::round(ocamAngle));
+    QString camAngleRuleTitle = "Угол камеры:";
+    int camAngleRulerTitleOffset = -20;
+
     drawVerticalRuler(&painter,
-                      QPoint( screenWidth/8*7, screenHeight / 5 + depthRullerSpacing),
-                      numDepthNumNotches,        // 30 делений
-                      depthRullerSpacing,        // расстояние между рисками = 10 пикселей
-                      5,         // обычная риска
-                      12,        // длинная риска
-                      2,         // толщина линии
-                      defaultColor,
-                      false,
-                      true,
-                      4,
+                      camAngleRulerPos,
+                      camAngleRulerNumNotches,        // 30 делений
+                      camAngleRulerNotchSpacing,        // расстояние между рисками = 10 пикселей
+                      camAngleRulerShortNotch,         // обычная риска
+                      camAngleRulerLongNotch,        // длинная риска
+                      camAngleRullerLineWidth,         // толщина линии
+                      camAngleRulerColor,
+                      camAngleRulerLeft,
+                      camAngleRulerDrawLabels,
+                      camAngleRulerLabelsOffset,
                       labelFont,
                       [](int i) {   // форматтер
                           // return QString("%1 m").arg(i * 10.0, 0, 'i', 1);  // Например: 0.0 cm, 2.5 cm ...
-                          return QString::number(i*10);
-                      });
+                          return QString::number(-(i * 18 - 90));
+                      },
+                      camAngleRulerDrawPoimter,
+                      camAngleRulerPointerPos,
+                      camAngleRulerPointerValue,
+                      camAngleRulerPointerSize,
+                      camAngleRulerPointerHollow,
+                      camAngleRulerPointerOffset,
+                      camAngleRuleTitle,
+                      camAngleRulerTitleOffset);
     // // Рисуем оверлей на всей доступной области виджета
-    // //painter.setBrush(QBrush(QColor(255, 0, 0, 100))); // Будет красить
+    // painter.setBrush(QBrush(QColor(255, 0, 0, 100))); // Будет красить
     // painter.drawRect(rect()); // Используем rect() для получения текущих размеров виджета
 
     // // Пример оверлея: красная линия от угла к углу
