@@ -67,6 +67,7 @@ private slots:
     void updateMasterFromControl(const bool &masterState);
     void telemetryReceived(const TelemetryPacket &packet);
     void setStabState();
+    void updateLightState(const bool &lightState);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -90,7 +91,7 @@ private:
     bool masterState;
     int powerLimit;
     float camAngle;
-
+    bool lightsState;
     bool stabEnabled;
     bool stabRollEnabled;
     bool stabPitchEnabled;

@@ -27,8 +27,6 @@ public:
                         GamepadWorker *gamepadWorker,
                         QObject *parent = nullptr);
     void sendDatagram(const QByteArray &data);
-    bool getMasterState();
-    bool getLigthsState();
     float getPowerLimit();
     void getThrust(const float forward,
                    const float strafe,
@@ -38,7 +36,7 @@ public:
                    const float yaw);
     bool connectToROV(const QHostAddress &address, quint16 port);
     bool getOnlineStatus;
-
+    float constrainf(const float value, const float lower_limit, const float upper_limit);
 
 signals:
     void datagramReceived(const QByteArray &data,
@@ -49,6 +47,7 @@ signals:
     void updateMaster(const bool &masterState);
     void onlineStateChanged(const bool &onlineState);
     void updatePowerLimit(const int &powerLimit);
+    void lightStateChanged(const bool &lightState);
 
 public slots:
     void settingsChanged();
@@ -67,6 +66,7 @@ private slots:
     void incrementValues();
 
 private:
+
     QUdpSocket *socket;
     QHostAddress remoteAddress;
     quint16 remotePort;

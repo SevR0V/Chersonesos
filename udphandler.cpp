@@ -266,6 +266,7 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     if(lightsButtonState){
         if (!lightsValueChangeFlag){
             cLights = !cLights;
+            emit  lightStateChanged(cLights);
             lightsValueChangeFlag = true;
         }
     } else {
@@ -322,7 +323,7 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     cYawThrust = getControlValue("rotate_yaw", machineToInput, joysticsState, controlProfile, "Right", "Left");
 
     //Roll
-    cRollThrust = getControlValue("rotate_roll", machineToInput, joysticsState, controlProfile);
+    cRollThrust = getControlValue("rotate_roll", machineToInput, joysticsState, controlProfile, "dec", "inc");
 
     //Pitch
     cPitchThrust = getControlValue("rotate_pitch", machineToInput, joysticsState, controlProfile);
@@ -562,7 +563,7 @@ void UdpHandler::masterChangedGui(const bool &masterState)
     cMASTER = masterState;
 }
 
-float constrainf(const float value, const float lower_limit, const float upper_limit){
+float UdpHandler::constrainf(const float value, const float lower_limit, const float upper_limit){
     if(value>upper_limit) return upper_limit;
     if(value<lower_limit) return lower_limit;
     return value;
@@ -612,3 +613,4 @@ void UdpHandler::stabStateChanged(const bool& stabAllState,
         cDepthStab = false;
     }
 }
+

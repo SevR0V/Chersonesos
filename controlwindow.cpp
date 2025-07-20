@@ -166,7 +166,8 @@ void ControlWindow::updateDeviceList(const QStringList &deviceNames)
     //     qDebug() << "profile " << profileName << " loaded";
     // }
 
-    onLoadProfileBtnClick();
+
+    onLoadProfileBtnClick(); //пофиксить логику
 
     _worker->resetDeviceListChanged();
 }
@@ -237,6 +238,9 @@ void ControlWindow::onLoadProfileBtnClick()
 void ControlWindow::loadProfile(const QString &profileName){
     if (profileManager->loadFromProfileName(profileName)){
         qDebug() << "profile " << profileName << " loaded";
+    }
+    if(ui->profileList->currentText()!= profileName){
+        ui->profileList->setCurrentText(profileName);
     }
     updateProfileOnGUI();
 }

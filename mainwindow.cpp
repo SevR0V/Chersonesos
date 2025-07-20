@@ -27,6 +27,7 @@ MainWindow::MainWindow(QWidget *parent)
     stabYawEnabled = false;
     stabDepthEnabled = false;
     camAngle = 0;
+    lightsState = false;
 
     worker->moveToThread(workerThread);
     workerThread->start();
@@ -124,7 +125,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     UdpTelemetryParser *telemetryParser = new UdpTelemetryParser();
 
-    UdpHandler *udpHandler = new UdpHandler(profileManager, telemetryParser, worker);
+    udpHandler = new UdpHandler(profileManager, telemetryParser, worker);
 
     udpHandler->settingsChanged();
 
@@ -164,6 +165,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->enablePitchStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
     connect(ui->enableYawStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
     connect(this, &MainWindow::stabUpdated, udpHandler, &UdpHandler::stabStateChanged);
+    connect(udpHandler, &UdpHandler::lightStateChanged,
+            this, &MainWindow::updateLightState,
+            Qt::QueuedConnection);
 }
 
 MainWindow::~MainWindow()
@@ -417,7 +421,8 @@ void MainWindow::updateOverlayData(){
                               stabDepthEnabled,
                               masterState,
                               powerLimit,
-                              camAngle);
+                              camAngle,
+                              lightsState);
 }
 
 void MainWindow::updateMasterFromControl(const bool &masterState){
@@ -463,4 +468,9 @@ void MainWindow::setStabState(){
         stabDepthEnabled = false;
     }
     emit stabUpdated(stabEnabled, stabRollEnabled, stabPitchEnabled, stabYawEnabled, stabDepthEnabled);
+}
+
+void MainWindow::updateLightState(const bool &lightState)
+{
+    lightsState = lightState;
 }

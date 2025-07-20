@@ -22,7 +22,8 @@ public:
                         const bool& stabDepth,
                         const bool& masterFlag,
                         const float& powerLimit,
-                        const float& camAngle);
+                        const float& camAngle,
+                        const bool &lightsState);
 
 public slots:
 
@@ -40,13 +41,23 @@ private:
     bool ostabYaw;
     bool ostabDepth;
     bool omasterFlag;
+    bool oLightsState;
     float opowerLimit;
     float ocamAngle;
     float oPitch;
     float oRoll;
     float oYaw;
     float oDepth;
+    float oPitchSetpoint;
+    float oRollSetpoint;
+    float oYawSetpoint;
+    float oDepthSetpoint;
+    float oBatLevel;
+    float prevYaw;
+    float revolutionCount;
     QWidget *parentWidget;
+
+    void countRevolutions();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
