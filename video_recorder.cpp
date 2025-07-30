@@ -215,8 +215,8 @@ void VideoRecorder::recordFrame() {
     }
 
     if (!frame.empty() && videoWriter.isOpened()) {
-        cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
         try {
+            cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
             videoWriter.write(frame);
         } catch (const cv::Exception& e) {
             QString errorMsg = QString("Ошибка записи кадра для камеры %1: %2")
@@ -234,7 +234,7 @@ void VideoRecorder::startNewSegment() {
     fileName = generateFileName("chersonesos", ".avi");
     std::string filePath = (m_sessionDirectory / fileName).string();
 
-    int fourccCode = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
+    int fourccCode = cv::VideoWriter::fourcc('X', 'V', 'I', 'D');
     cv::Size videoResolution;
     int realFPS = 20;
 
