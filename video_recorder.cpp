@@ -1,7 +1,7 @@
 #include "video_recorder.h"
 
 VideoRecorder::VideoRecorder(RecordFrameInfo* recordInfo, QObject* parent)
-    : QObject(parent), m_recordInfo(recordInfo), m_isRecording(false), m_recordInterval(30), m_storedVideoFilesLimit(10) {}
+    : QObject(parent), m_recordInfo(recordInfo), m_isRecording(false), m_recordInterval(30), m_storedVideoFilesLimit(10), m_frameCount(0), m_realFPS(20) {}
 
 void VideoRecorder::setRecordInterval(int interval) {
     m_recordInterval = interval > 0 ? interval : 30;
@@ -62,7 +62,15 @@ void VideoRecorder::startRecording() {
         return;
     }
 
+    if (videoWriter.isOpened()) {
+        videoWriter.release();
+        qDebug() << "Предыдущая запись принудительно завершена для камеры" << m_recordInfo->name;
+    }
+
     m_isRecording = true;
+    m_frameCount = 0;
+    m_timer.invalidate();
+    m_timer.start();
     qDebug() << "Начало записи видео для камеры" << m_recordInfo->name;
 
     std::filesystem::path pathToVideoDirectory = std::filesystem::current_path() / "video";
@@ -96,7 +104,6 @@ void VideoRecorder::startRecording() {
         return;
     }
 
-    // Создание папки с датой
     std::string dateDirName = generateDateDirectoryName();
     std::filesystem::path dateDirectory = pathToVideoDirectory / dateDirName;
     try {
@@ -128,7 +135,6 @@ void VideoRecorder::startRecording() {
         return;
     }
 
-    // Создание папки с временем
     std::string timeDirName = generateTimeDirectoryName();
     m_sessionDirectory = dateDirectory / timeDirName;
     try {
@@ -183,8 +189,11 @@ void VideoRecorder::stopRecording() {
     m_isRecording = false;
     if (videoWriter.isOpened()) {
         videoWriter.release();
-        qDebug() << "Запись видео остановлена для камеры" << m_recordInfo->name;
+        qDebug() << "Запись видео остановлена для камеры" << m_recordInfo->name
+                 << ", кадров записано:" << m_frameCount << ", время:" << m_timer.elapsed() / 1000.0 << "секунд";
     }
+    m_timer.invalidate();
+    m_frameCount = 0;
 }
 
 void VideoRecorder::recordFrame() {
@@ -192,18 +201,7 @@ void VideoRecorder::recordFrame() {
 
     if (!m_timer.isValid()) {
         m_timer.start();
-    }
-
-    if (m_timer.elapsed() >= m_recordInterval * 1000) {
-        if (videoWriter.isOpened()) {
-            videoWriter.release();
-            qDebug() << "Запись сегмента видео завершена для файла:" << QString::fromStdString(fileName) << "через" << m_timer.elapsed() << "мс";
-            emit recordingFinished();
-        }
-        manageStoredFiles();
-        startNewSegment();
-        m_timer.restart();
-        qDebug() << "Новый сегмент начат для камеры" << m_recordInfo->name;
+        qDebug() << "Таймер запущен для камеры" << m_recordInfo->name;
     }
 
     cv::Mat frame;
@@ -218,6 +216,9 @@ void VideoRecorder::recordFrame() {
         try {
             cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
             videoWriter.write(frame);
+            m_frameCount++;
+            qDebug() << "Записан кадр #" << m_frameCount << "для файла" << QString::fromStdString(fileName)
+                     << ", время:" << m_timer.elapsed() / 1000.0 << "секунд";
         } catch (const cv::Exception& e) {
             QString errorMsg = QString("Ошибка записи кадра для камеры %1: %2")
                                    .arg(m_recordInfo->name).arg(e.what());
@@ -228,6 +229,23 @@ void VideoRecorder::recordFrame() {
     } else {
         qDebug() << "Пропущен пустой кадр или VideoWriter не открыт для камеры" << m_recordInfo->name;
     }
+
+    // Updated check: Prioritize frame count; use time only as safeguard (e.g., if FPS drops below ~13 FPS)
+    int maxFrames = m_recordInterval * m_realFPS;
+    if (m_frameCount >= maxFrames || m_timer.elapsed() >= m_recordInterval * 1500) {  // 1.5x interval = 180s max
+        if (videoWriter.isOpened()) {
+            videoWriter.release();
+            qDebug() << "Запись сегмента видео завершена для файла:" << QString::fromStdString(fileName)
+                     << ", кадров:" << m_frameCount << ", время:" << m_timer.elapsed() / 1000.0 << "секунд";
+            emit recordingFinished();
+        }
+        startNewSegment();
+        manageStoredFiles();
+        m_frameCount = 0;
+        m_timer.invalidate();
+        m_timer.start();
+        qDebug() << "Новый сегмент начат для камеры" << m_recordInfo->name;
+    }
 }
 
 void VideoRecorder::startNewSegment() {
@@ -236,7 +254,6 @@ void VideoRecorder::startNewSegment() {
 
     int fourccCode = cv::VideoWriter::fourcc('X', 'V', 'I', 'D');
     cv::Size videoResolution;
-    int realFPS = 20;
 
     {
         QMutexLocker locker(m_recordInfo->mutex);
@@ -250,10 +267,10 @@ void VideoRecorder::startNewSegment() {
         videoResolution = m_recordInfo->img.size();
     }
 
-    videoWriter.open(filePath, fourccCode, realFPS, videoResolution);
+    videoWriter.open(filePath, fourccCode, m_realFPS, videoResolution);
     if (!videoWriter.isOpened()) {
         QString errorMsg = QString("Не удалось открыть VideoWriter для файла %1, Кодек: %2, FPS: %3, Разрешение: %4x%5")
-                               .arg(QString::fromStdString(filePath)).arg(fourccCode).arg(realFPS)
+                               .arg(QString::fromStdString(filePath)).arg(fourccCode).arg(m_realFPS)
                                .arg(videoResolution.width).arg(videoResolution.height);
         qDebug() << errorMsg;
         if (videoWriter.isOpened()) videoWriter.release();
@@ -262,7 +279,7 @@ void VideoRecorder::startNewSegment() {
     }
 
     qDebug() << "Запись видео начата для файла:" << QString::fromStdString(fileName)
-             << ", FPS:" << realFPS << ", Разрешение:" << videoResolution.width << "x" << videoResolution.height;
+             << ", FPS:" << m_realFPS << ", Разрешение:" << videoResolution.width << "x" << videoResolution.height;
     emit recordingStarted();
 }
 

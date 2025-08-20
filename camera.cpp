@@ -1,6 +1,6 @@
 #include "camera.h"
 
-Camera::Camera(QStringList& names, QObject* parent) : QObject(parent), m_cameraNames(names), m_reconnectAttempts(0), m_maxReconnectAttempts(5) {
+Camera::Camera(QStringList& names, QObject* parent) : QObject(parent), m_cameraNames(names), m_reconnectAttempts(0) {
     qDebug() << "Создание объекта Camera";
     memset(&m_deviceList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
 
@@ -32,8 +32,20 @@ Camera::~Camera() {
         delete m_cameras[i]->worker;
         delete m_cameras[i]->thread;
         delete m_streamInfos[i]->streamer;
+        if (m_streamInfos[i]->streamerThread && m_streamInfos[i]->streamerThread->isRunning()) {
+            m_streamInfos[i]->streamerThread->quit();
+            m_streamInfos[i]->streamerThread->wait(5000);
+        }
         delete m_streamInfos[i]->streamerThread;
         delete m_recordInfos[i]->recorder;
+        if (m_recordInfos[i]->recorderThread && m_recordInfos[i]->recorderThread->isRunning()) {
+            m_recordInfos[i]->recorderThread->quit();
+            if (!m_recordInfos[i]->recorderThread->wait(5000)) {
+                qDebug() << "Поток записи для" << m_cameras[i]->name << "не завершился, принудительное завершение";
+                m_recordInfos[i]->recorderThread->terminate();
+                m_recordInfos[i]->recorderThread->wait();
+            }
+        }
         delete m_recordInfos[i]->recorderThread;
         delete m_cameras[i];
         delete m_streamInfos[i];
@@ -132,7 +144,6 @@ void Camera::initializeCameras() {
         recordInfo->recorderThread = new QThread(this);
         recordInfo->recorder->moveToThread(recordInfo->recorderThread);
         recordInfo->recorderThread->start();
-        recordInfo->recorderThread->setPriority(QThread::LowPriority);
         qDebug() << "Создан и запущен поток записи для камеры" << frameInfo->name;
 
         streamInfo->streamer = new VideoStreamer(streamInfo, 0);
@@ -213,7 +224,6 @@ void Camera::reinitializeCameras() {
         recordInfo->recorderThread = new QThread(this);
         recordInfo->recorder->moveToThread(recordInfo->recorderThread);
         recordInfo->recorderThread->start();
-        recordInfo->recorderThread->setPriority(QThread::LowPriority);
         qDebug() << "Создан и запущен поток записи для камеры" << frameInfo->name;
 
         streamInfo->streamer = new VideoStreamer(streamInfo, 0);
@@ -345,9 +355,9 @@ void Camera::startRecording(const QString& cameraName, int recordInterval, int s
                 disconnect(recordInfo->recorder, &VideoRecorder::recordingStarted, this, nullptr);
                 disconnect(recordInfo->recorder, &VideoRecorder::recordingFinished, this, nullptr);
                 disconnect(recordInfo->recorder, &VideoRecorder::recordingFailed, this, nullptr);
+                disconnect(frameInfo->worker, &CameraWorker::frameReady, recordInfo->recorder, &VideoRecorder::recordFrame);
 
                 // Новые соединения
-                connect(recordInfo->recorderThread, &QThread::started, recordInfo->recorder, &VideoRecorder::startRecording, Qt::UniqueConnection);
                 connect(recordInfo->recorder, &VideoRecorder::recordingStarted, this,
                         [this, frameInfo]() {
                             qDebug() << "Запись начата для камеры" << frameInfo->name;
@@ -360,16 +370,11 @@ void Camera::startRecording(const QString& cameraName, int recordInterval, int s
                         }, Qt::QueuedConnection);
                 connect(recordInfo->recorder, &VideoRecorder::recordingFailed, this,
                         &Camera::handleRecordingFailure, Qt::QueuedConnection);
-                // Добавлено соединение для frameReady
                 connect(frameInfo->worker, &CameraWorker::frameReady, recordInfo->recorder, &VideoRecorder::recordFrame, Qt::QueuedConnection);
 
-                if (!recordInfo->recorderThread->isRunning()) {
-                    recordInfo->recorderThread->start();
-                    qDebug() << "Поток записи для камеры" << recordInfo->name << "запущен.";
-                } else {
-                    QMetaObject::invokeMethod(recordInfo->recorder, "startRecording", Qt::QueuedConnection);
-                    qDebug() << "Асинхронный вызов startRecording для камеры" << recordInfo->name;
-                }
+                // Вызываем startRecording асинхронно
+                QMetaObject::invokeMethod(recordInfo->recorder, "startRecording", Qt::QueuedConnection);
+                qDebug() << "Асинхронный вызов startRecording для камеры" << recordInfo->name;
             } else {
                 QString errorMsg = QString("Recorder или recorderThread не инициализированы для камеры %1").arg(recordInfo->name);
                 qDebug() << errorMsg;
@@ -390,15 +395,7 @@ void Camera::stopRecording(const QString& cameraName) {
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         if (m_cameras[i]->name == cameraName && m_recordInfos[i]->recorder) {
             disconnect(m_cameras[i]->worker, &CameraWorker::frameReady, m_recordInfos[i]->recorder, &VideoRecorder::recordFrame);
-            m_recordInfos[i]->recorder->stopRecording();
-            if (m_recordInfos[i]->recorderThread && m_recordInfos[i]->recorderThread->isRunning()) {
-                m_recordInfos[i]->recorderThread->quit();
-                if (!m_recordInfos[i]->recorderThread->wait(5000)) {
-                    qDebug() << "Поток записи для" << m_cameras[i]->name << "не завершился, принудительное завершение";
-                    m_recordInfos[i]->recorderThread->terminate();
-                    m_recordInfos[i]->recorderThread->wait();
-                }
-            }
+            QMetaObject::invokeMethod(m_recordInfos[i]->recorder, "stopRecording", Qt::QueuedConnection);
             qDebug() << "Запись остановлена для камеры" << m_cameras[i]->name;
             break;
         }

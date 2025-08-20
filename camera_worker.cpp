@@ -53,19 +53,15 @@ void CameraWorker::capture() {
         nRet = MV_CC_GetImageBuffer(m_frameInfo->handle, &stOutFrame, 500);
         if (nRet == MV_OK && stOutFrame.pBufAddr) {
             {
-                QMutexLocker locker(m_frameInfo->mutex);
-                m_frameInfo->frame.pData = stOutFrame.pBufAddr;
-                m_frameInfo->frame.nWidth = stOutFrame.stFrameInfo.nWidth;
-                m_frameInfo->frame.nHeight = stOutFrame.stFrameInfo.nHeight;
-                m_frameInfo->frame.enPixelType = stOutFrame.stFrameInfo.enPixelType;
-                m_frameInfo->frame.nDataLen = stOutFrame.stFrameInfo.nWidth * stOutFrame.stFrameInfo.nHeight * 3;
-                m_frameInfo->frame.enRenderMode = 0;
 
                 cv::Mat bayerMat(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC1, stOutFrame.pBufAddr);
                 cv::Mat rawFrame(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC3);
                 cv::cvtColor(bayerMat, rawFrame, cv::COLOR_BayerRG2BGR);
-                m_frameInfo->img = QImage(rawFrame.data, rawFrame.cols, rawFrame.rows, rawFrame.step, QImage::Format_RGB888).copy();
-
+                QImage qimg = QImage(rawFrame.data, rawFrame.cols, rawFrame.rows, rawFrame.step, QImage::Format_RGB888).copy();
+                {
+                    QMutexLocker locker(m_frameInfo->mutex);
+                    m_frameInfo->img = qimg;
+                }
                 {
                     QMutexLocker streamLocker(m_streamInfo->mutex);
                     m_streamInfo->img = rawFrame.clone();
@@ -77,9 +73,7 @@ void CameraWorker::capture() {
             }
 
             if (stOutFrame.pBufAddr && stOutFrame.stFrameInfo.nWidth > 0 && stOutFrame.stFrameInfo.nHeight > 0) {
-                //QByteArray frameData(reinterpret_cast<const char*>(stOutFrame.pBufAddr), stOutFrame.stFrameInfo.nFrameLen);
                 emit frameReady();
-                //emit frameDataReady(frameData, stOutFrame.stFrameInfo.nWidth, stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.enPixelType);
             } else {
                 QString errorMsg = QString("Получены некорректные данные кадра для камеры %1: pData=%2, ширина=%3, высота=%4")
                                        .arg(m_frameInfo->name)

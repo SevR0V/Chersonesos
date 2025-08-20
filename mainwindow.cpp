@@ -170,8 +170,7 @@ MainWindow::MainWindow(QWidget *parent)
             Qt::QueuedConnection);
 }
 
-MainWindow::~MainWindow()
-{
+MainWindow::~MainWindow() {
     if (m_camera) {
         QThread* cameraThread = m_camera->thread();
         if (cameraThread && cameraThread->isRunning()) {

@@ -124,7 +124,7 @@ void VideoStreamer::streamFrames(QTcpSocket* client) {
                 std::vector<int> compression_params;
                 cv::resize(frame, frame, cv::Size(800, 600));
                 compression_params.push_back(cv::IMWRITE_JPEG_QUALITY);
-                compression_params.push_back(90);
+                compression_params.push_back(70);
                 cv::imencode(".jpg", frame, buffer, compression_params);
 
                 QByteArray frameData;
