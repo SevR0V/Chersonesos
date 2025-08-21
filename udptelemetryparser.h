@@ -6,16 +6,16 @@
 #include <QDataStream>
 
 struct TelemetryPacket {
-    quint64 flags;       // Статусные флаги
-    float roll;          // Крен
-    float pitch;         // Тангаж
-    float yaw;           // Курс
-    float depth;         // Глубина
-    float batVoltage;    // Напряжение батареи
-    float batCharge;     // Заряд батареи
-    float cameraAngle;   // Угол поворота камеры
-    float rollSP;        // Задание крена
-    float pitchSP;       // Задание тангажа
+    quint64 flags = 0;// Статусные флаги
+    float roll = 0;// Крен
+    float pitch = 0;// Тангаж
+    float yaw = 0;// Курс
+    float depth = 0;// Глубина
+    float batVoltage = 0;// Напряжение батареи
+    float batCharge = 0;// Заряд батареи
+    float cameraAngle = 0;// Угол поворота камеры
+    float rollSP = 0;// Задание крена
+    float pitchSP = 0;// Задание тангажа
 };
 
 class UdpTelemetryParser : public QObject {

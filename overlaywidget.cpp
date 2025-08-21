@@ -792,7 +792,7 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     int screenHeight = height();
     int CameraVerticalAngle = 56;
 
-    QColor defaultColor(Qt::gray);
+    QColor defaultColor(Qt::lightGray);
 
     int centerX = screenWidth/2;
     int centerY = screenHeight/2;
@@ -810,7 +810,7 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     //Квадрат переключается на стрелку, если камера отклонена так, что направление аппарата вне видимости (помогает с ориентированием)
     ArrowMode camLook = ArrowMode::None;
     int pixInDeg = screenHeight / CameraVerticalAngle;
-    int camY = centerY;//+ ocamAngle * pixInDeg;
+    int camY = centerY; //+ ocamAngle * pixInDeg;
     if(camY <= (screenHeight / 5)){
         camY = screenHeight / 5;
         camLook = ArrowMode::BelowLookingUp;
@@ -1016,7 +1016,7 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     QString depthRulerTitle = "Глубина";
     int depthRulerTitleOffset = pitchRulerTitleOffset;
     bool depthRulerShowPointerLabel = true;
-    QString depthRulerValueName = QString::number(depthRulerValue);
+    QString depthRulerValueName = QString::number(depthRulerValue, 'f', 1);
     int depthRulerPointerSize = pitchRulerPointerSize;
     int depthRulerPointerOffset = -pitchRulerPointerOffset;
     int depthRulerPointerLabelOffset = depthRulerPointerOffset + 14;
@@ -1174,7 +1174,7 @@ void OverlayWidget::controlsUpdate(const bool& stabEnabled,
     ostabDepth = stabDepth;
     omasterFlag = masterFlag;
     opowerLimit = powerLimit;
-    ocamAngle = constrainff(camAngle, -90, 90);
+    ocamAngle = constrainff(camAngle, -90.0f, 90.0f);
     oLightsState = lightsState;
 }
 

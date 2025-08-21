@@ -25,7 +25,6 @@ bool UdpTelemetryParser::parse(const QByteArray &data, TelemetryPacket &packet)
     stream >> packet.cameraAngle;
     stream >> packet.rollSP;
     stream >> packet.pitchSP;
-
     emit telemetryReceived(packet);
     return true;
 }
