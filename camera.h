@@ -64,7 +64,6 @@ private:
     MV_CC_DEVICE_INFO_LIST m_deviceList;
     QTimer* m_checkCameraTimer;
     int m_reconnectAttempts;
-    const int m_maxReconnectAttempts;
     std::set<unsigned int> m_usedIPs;
     std::filesystem::path m_sessionDirectory; // Путь к сессионной папке
 

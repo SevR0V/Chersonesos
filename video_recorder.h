@@ -48,6 +48,8 @@ private:
     int m_recordInterval;
     int m_storedVideoFilesLimit;
     std::filesystem::path m_sessionDirectory;
+    int m_frameCount; // Счетчик кадров для текущего сегмента
+    int m_realFPS; // Заданный FPS для записи
 };
 
 #endif // VIDEO_RECORDER_H

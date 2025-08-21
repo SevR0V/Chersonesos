@@ -1,6 +1,6 @@
 #include "camera.h"
 
-Camera::Camera(QStringList& names, QObject* parent) : QObject(parent), m_cameraNames(names), m_reconnectAttempts(0), m_maxReconnectAttempts(5) {
+Camera::Camera(QStringList& names, QObject* parent) : QObject(parent), m_cameraNames(names), m_reconnectAttempts(0) {
     qDebug() << "Создание объекта Camera";
     memset(&m_deviceList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
 
@@ -32,8 +32,20 @@ Camera::~Camera() {
         delete m_cameras[i]->worker;
         delete m_cameras[i]->thread;
         delete m_streamInfos[i]->streamer;
+        if (m_streamInfos[i]->streamerThread && m_streamInfos[i]->streamerThread->isRunning()) {
+            m_streamInfos[i]->streamerThread->quit();
+            m_streamInfos[i]->streamerThread->wait(5000);
+        }
         delete m_streamInfos[i]->streamerThread;
         delete m_recordInfos[i]->recorder;
+        if (m_recordInfos[i]->recorderThread && m_recordInfos[i]->recorderThread->isRunning()) {
+            m_recordInfos[i]->recorderThread->quit();
+            if (!m_recordInfos[i]->recorderThread->wait(5000)) {
+                qDebug() << "Поток записи для" << m_cameras[i]->name << "не завершился, принудительное завершение";
+                m_recordInfos[i]->recorderThread->terminate();
+                m_recordInfos[i]->recorderThread->wait();
+            }
+        }
         delete m_recordInfos[i]->recorderThread;
         delete m_cameras[i];
         delete m_streamInfos[i];
@@ -132,7 +144,6 @@ void Camera::initializeCameras() {
         recordInfo->recorderThread = new QThread(this);
         recordInfo->recorder->moveToThread(recordInfo->recorderThread);
         recordInfo->recorderThread->start();
-        recordInfo->recorderThread->setPriority(QThread::LowPriority);
         qDebug() << "Создан и запущен поток записи для камеры" << frameInfo->name;
 
         streamInfo->streamer = new VideoStreamer(streamInfo, 0);
@@ -213,7 +224,6 @@ void Camera::reinitializeCameras() {
         recordInfo->recorderThread = new QThread(this);
         recordInfo->recorder->moveToThread(recordInfo->recorderThread);
         recordInfo->recorderThread->start();
-        recordInfo->recorderThread->setPriority(QThread::LowPriority);
         qDebug() << "Создан и запущен поток записи для камеры" << frameInfo->name;
 
         streamInfo->streamer = new VideoStreamer(streamInfo, 0);
@@ -294,7 +304,7 @@ void Camera::stopAll() {
         // Завершение потоков с проверкой
         if (frameInfo->thread && frameInfo->thread->isRunning()) {
             frameInfo->thread->quit();
-            if (!frameInfo->thread->wait(5000)) {
+            if (!frameInfo->thread->wait(10000)) {
                 qDebug() << "Поток захвата для" << frameInfo->name << "не завершился, принудительное завершение";
                 frameInfo->thread->terminate();
                 frameInfo->thread->wait();
@@ -302,7 +312,7 @@ void Camera::stopAll() {
         }
         if (recordInfo->recorderThread && recordInfo->recorderThread->isRunning()) {
             recordInfo->recorderThread->quit();
-            if (!recordInfo->recorderThread->wait(5000)) {
+            if (!recordInfo->recorderThread->wait(10000)) {
                 qDebug() << "Поток записи для" << frameInfo->name << "не завершился, принудительное завершение";
                 recordInfo->recorderThread->terminate();
                 recordInfo->recorderThread->wait();
@@ -310,7 +320,7 @@ void Camera::stopAll() {
         }
         if (streamInfo->streamerThread && streamInfo->streamerThread->isRunning()) {
             streamInfo->streamerThread->quit();
-            if (!streamInfo->streamerThread->wait(5000)) {
+            if (!streamInfo->streamerThread->wait(10000)) {
                 qDebug() << "Поток стриминга для" << frameInfo->name << "не завершился, принудительное завершение";
                 streamInfo->streamerThread->terminate();
                 streamInfo->streamerThread->wait();
@@ -345,9 +355,9 @@ void Camera::startRecording(const QString& cameraName, int recordInterval, int s
                 disconnect(recordInfo->recorder, &VideoRecorder::recordingStarted, this, nullptr);
                 disconnect(recordInfo->recorder, &VideoRecorder::recordingFinished, this, nullptr);
                 disconnect(recordInfo->recorder, &VideoRecorder::recordingFailed, this, nullptr);
+                disconnect(frameInfo->worker, &CameraWorker::frameReady, recordInfo->recorder, &VideoRecorder::recordFrame);
 
                 // Новые соединения
-                connect(recordInfo->recorderThread, &QThread::started, recordInfo->recorder, &VideoRecorder::startRecording, Qt::UniqueConnection);
                 connect(recordInfo->recorder, &VideoRecorder::recordingStarted, this,
                         [this, frameInfo]() {
                             qDebug() << "Запись начата для камеры" << frameInfo->name;
@@ -360,16 +370,11 @@ void Camera::startRecording(const QString& cameraName, int recordInterval, int s
                         }, Qt::QueuedConnection);
                 connect(recordInfo->recorder, &VideoRecorder::recordingFailed, this,
                         &Camera::handleRecordingFailure, Qt::QueuedConnection);
-                // Добавлено соединение для frameReady
                 connect(frameInfo->worker, &CameraWorker::frameReady, recordInfo->recorder, &VideoRecorder::recordFrame, Qt::QueuedConnection);
 
-                if (!recordInfo->recorderThread->isRunning()) {
-                    recordInfo->recorderThread->start();
-                    qDebug() << "Поток записи для камеры" << recordInfo->name << "запущен.";
-                } else {
-                    QMetaObject::invokeMethod(recordInfo->recorder, "startRecording", Qt::QueuedConnection);
-                    qDebug() << "Асинхронный вызов startRecording для камеры" << recordInfo->name;
-                }
+                // Вызываем startRecording асинхронно
+                QMetaObject::invokeMethod(recordInfo->recorder, "startRecording", Qt::QueuedConnection);
+                qDebug() << "Асинхронный вызов startRecording для камеры" << recordInfo->name;
             } else {
                 QString errorMsg = QString("Recorder или recorderThread не инициализированы для камеры %1").arg(recordInfo->name);
                 qDebug() << errorMsg;
@@ -390,15 +395,7 @@ void Camera::stopRecording(const QString& cameraName) {
     for (size_t i = 0; i < m_cameras.size(); ++i) {
         if (m_cameras[i]->name == cameraName && m_recordInfos[i]->recorder) {
             disconnect(m_cameras[i]->worker, &CameraWorker::frameReady, m_recordInfos[i]->recorder, &VideoRecorder::recordFrame);
-            m_recordInfos[i]->recorder->stopRecording();
-            if (m_recordInfos[i]->recorderThread && m_recordInfos[i]->recorderThread->isRunning()) {
-                m_recordInfos[i]->recorderThread->quit();
-                if (!m_recordInfos[i]->recorderThread->wait(5000)) {
-                    qDebug() << "Поток записи для" << m_cameras[i]->name << "не завершился, принудительное завершение";
-                    m_recordInfos[i]->recorderThread->terminate();
-                    m_recordInfos[i]->recorderThread->wait();
-                }
-            }
+            QMetaObject::invokeMethod(m_recordInfos[i]->recorder, "stopRecording", Qt::QueuedConnection);
             qDebug() << "Запись остановлена для камеры" << m_cameras[i]->name;
             break;
         }
@@ -494,9 +491,14 @@ void Camera::stereoShot() {
         }
     }
 
-    if (lFrame.empty() || rFrame.empty()) {
+    if (!lCameraInfo->img.empty()) {
         cv::cvtColor(lFrame, lFrame, cv::COLOR_BGR2RGB);
+    }
+    if (!rCameraInfo->img.empty()) {
         cv::cvtColor(rFrame, rFrame, cv::COLOR_BGR2RGB);
+    }
+
+    if (lFrame.empty() || rFrame.empty()) {
         QString errorMsg = QString("Один или оба кадра пусты (LCamera: %1, RCamera: %2)")
                                .arg(lFrame.empty() ? "пуст" : "не пуст")
                                .arg(rFrame.empty() ? "пуст" : "не пуст");
@@ -506,14 +508,26 @@ void Camera::stereoShot() {
         return;
     }
 
-    std::filesystem::path stereoDirectory = std::filesystem::current_path() / "stereo";
+    // Create directory structure: stereo/YYYYMMDD/L and stereo/YYYYMMDD/R
+    auto now = std::time(nullptr);
+    std::tm timeInfo;
+#ifdef _MSC_VER
+    localtime_s(&timeInfo, &now);
+#else
+    timeInfo = *std::localtime(&now);
+#endif
+    std::stringstream dateSS;
+    dateSS << std::put_time(&timeInfo, "%d%m%Y");
+    std::string dateDir = dateSS.str();
+
+    std::filesystem::path stereoDirectory = std::filesystem::current_path() / "stereo" / dateDir;
     std::filesystem::path lDirectory = stereoDirectory / "L";
     std::filesystem::path rDirectory = stereoDirectory / "R";
 
     try {
         if (!std::filesystem::exists(stereoDirectory)) {
-            if (!std::filesystem::create_directory(stereoDirectory)) {
-                QString errorMsg = "Не удалось создать директорию stereo";
+            if (!std::filesystem::create_directories(stereoDirectory)) {
+                QString errorMsg = QString("Не удалось создать директорию stereo/%1").arg(QString::fromStdString(dateDir));
                 qDebug() << errorMsg;
                 emit errorOccurred("Camera", errorMsg);
                 emit stereoShotFailed(errorMsg);
@@ -522,7 +536,7 @@ void Camera::stereoShot() {
         }
         if (!std::filesystem::exists(lDirectory)) {
             if (!std::filesystem::create_directory(lDirectory)) {
-                QString errorMsg = "Не удалось создать директорию stereo/L";
+                QString errorMsg = QString("Не удалось создать директорию stereo/%1/L").arg(QString::fromStdString(dateDir));
                 qDebug() << errorMsg;
                 emit errorOccurred("Camera", errorMsg);
                 emit stereoShotFailed(errorMsg);
@@ -531,7 +545,7 @@ void Camera::stereoShot() {
         }
         if (!std::filesystem::exists(rDirectory)) {
             if (!std::filesystem::create_directory(rDirectory)) {
-                QString errorMsg = "Не удалось создать директорию stereo/R";
+                QString errorMsg = QString("Не удалось создать директорию stereo/%1/R").arg(QString::fromStdString(dateDir));
                 qDebug() << errorMsg;
                 emit errorOccurred("Camera", errorMsg);
                 emit stereoShotFailed(errorMsg);
@@ -541,7 +555,7 @@ void Camera::stereoShot() {
 
         std::filesystem::perms perms = std::filesystem::status(stereoDirectory).permissions();
         if ((perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
-            QString errorMsg = "Нет прав на запись в директорию stereo";
+            QString errorMsg = QString("Нет прав на запись в директорию stereo/%1").arg(QString::fromStdString(dateDir));
             qDebug() << errorMsg;
             emit errorOccurred("Camera", errorMsg);
             emit stereoShotFailed(errorMsg);
@@ -555,16 +569,10 @@ void Camera::stereoShot() {
         return;
     }
 
-    auto now = std::time(nullptr);
-    std::tm timeInfo;
-#ifdef _MSC_VER
-    localtime_s(&timeInfo, &now);
-#else
-    timeInfo = *std::localtime(&now);
-#endif
-    std::stringstream ss;
-    ss << std::put_time(&timeInfo, "%Y%m%d_%H%M%S");
-    std::string timestamp = ss.str();
+    // Generate timestamp for filename
+    std::stringstream timeSS;
+    timeSS << std::put_time(&timeInfo, "%Y%m%d_%H%M%S");
+    std::string timestamp = timeSS.str();
 
     std::string lFileName = "LCamera_" + timestamp + ".png";
     std::string rFileName = "RCamera_" + timestamp + ".png";
