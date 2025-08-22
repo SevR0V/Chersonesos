@@ -112,8 +112,9 @@ void VideoStreamer::streamFrames(QTcpSocket* client) {
         cv::Mat frame;
         {
             QMutexLocker locker(m_streamInfo->mutex);
-            if (!m_streamInfo->img.empty()) {
-                frame = m_streamInfo->img.clone();
+            int front = m_streamInfo->frontIndex.load(std::memory_order_acquire);  // Читаем atomic front
+            if (!m_streamInfo->buffers[front].empty()) {
+                frame = m_streamInfo->buffers[front].clone();  // Clone для модификации
             }
         }
 

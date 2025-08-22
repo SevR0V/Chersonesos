@@ -117,17 +117,20 @@ void VideoRecorder::startRecording() {
                 emit recordingFailed(errorMsg);
                 return;
             }
-        } else if (!std::filesystem::is_directory(dateDirectory)) {
-            QString errorMsg = QString("Путь %1 существует, но не является директорией для камеры %2")
-                                   .arg(QString::fromStdString(dateDirectory.string())).arg(m_recordInfo->name);
-            qDebug() << errorMsg;
-            m_isRecording = false;
-            emit errorOccurred("VideoRecorder", errorMsg);
-            emit recordingFailed(errorMsg);
-            return;
+        } else {
+            std::filesystem::perms perms = std::filesystem::status(dateDirectory).permissions();
+            if ((perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
+                QString errorMsg = QString("Нет прав на запись в директорию даты %1 для камеры %2")
+                                       .arg(QString::fromStdString(dateDirectory.string())).arg(m_recordInfo->name);
+                qDebug() << errorMsg;
+                m_isRecording = false;
+                emit errorOccurred("VideoRecorder", errorMsg);
+                emit recordingFailed(errorMsg);
+                return;
+            }
         }
     } catch (const std::filesystem::filesystem_error& e) {
-        QString errorMsg = QString("Ошибка файловой системы при создании директории даты для камеры %1: %2")
+        QString errorMsg = QString("Ошибка файловой системы для камеры %1: %2")
                                .arg(m_recordInfo->name).arg(e.what());
         m_isRecording = false;
         emit errorOccurred("VideoRecorder", errorMsg);
@@ -140,43 +143,30 @@ void VideoRecorder::startRecording() {
     try {
         if (!std::filesystem::exists(m_sessionDirectory)) {
             if (!std::filesystem::create_directory(m_sessionDirectory)) {
-                QString errorMsg = QString("Не удалось создать директорию времени %1 для камеры %2")
+                QString errorMsg = QString("Не удалось создать сессионную директорию %1 для камеры %2")
                                        .arg(QString::fromStdString(m_sessionDirectory.string())).arg(m_recordInfo->name);
                 qDebug() << errorMsg;
                 m_isRecording = false;
-                if (videoWriter.isOpened()) videoWriter.release();
                 emit errorOccurred("VideoRecorder", errorMsg);
                 emit recordingFailed(errorMsg);
                 return;
             }
         } else {
-            if (!std::filesystem::is_directory(m_sessionDirectory)) {
-                QString errorMsg = QString("Путь %1 существует, но не является директорией для камеры %2")
-                                       .arg(QString::fromStdString(m_sessionDirectory.string())).arg(m_recordInfo->name);
-                qDebug() << errorMsg;
-                m_isRecording = false;
-                if (videoWriter.isOpened()) videoWriter.release();
-                emit errorOccurred("VideoRecorder", errorMsg);
-                emit recordingFailed(errorMsg);
-                return;
-            }
             std::filesystem::perms perms = std::filesystem::status(m_sessionDirectory).permissions();
             if ((perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
-                QString errorMsg = QString("Нет прав на запись в директорию времени %1 для камеры %2")
+                QString errorMsg = QString("Нет прав на запись в сессионную директорию %1 для камеры %2")
                                        .arg(QString::fromStdString(m_sessionDirectory.string())).arg(m_recordInfo->name);
                 qDebug() << errorMsg;
                 m_isRecording = false;
-                if (videoWriter.isOpened()) videoWriter.release();
                 emit errorOccurred("VideoRecorder", errorMsg);
                 emit recordingFailed(errorMsg);
                 return;
             }
         }
     } catch (const std::filesystem::filesystem_error& e) {
-        QString errorMsg = QString("Ошибка файловой системы при создании директории времени для камеры %1: %2")
+        QString errorMsg = QString("Ошибка файловой системы для камеры %1: %2")
                                .arg(m_recordInfo->name).arg(e.what());
         m_isRecording = false;
-        if (videoWriter.isOpened()) videoWriter.release();
         emit errorOccurred("VideoRecorder", errorMsg);
         emit recordingFailed(errorMsg);
         return;
@@ -186,29 +176,30 @@ void VideoRecorder::startRecording() {
 }
 
 void VideoRecorder::stopRecording() {
+    if (!m_isRecording) {
+        return;
+    }
+
     m_isRecording = false;
     if (videoWriter.isOpened()) {
         videoWriter.release();
-        qDebug() << "Запись видео остановлена для камеры" << m_recordInfo->name
-                 << ", кадров записано:" << m_frameCount << ", время:" << m_timer.elapsed() / 1000.0 << "секунд";
+        qDebug() << "Запись видео завершена для камеры" << m_recordInfo->name;
+        emit recordingFinished();
     }
-    m_timer.invalidate();
-    m_frameCount = 0;
+    manageStoredFiles();
 }
 
 void VideoRecorder::recordFrame() {
-    if (!m_isRecording) return;
-
-    if (!m_timer.isValid()) {
-        m_timer.start();
-        qDebug() << "Таймер запущен для камеры" << m_recordInfo->name;
+    if (!m_isRecording) {
+        return;
     }
 
     cv::Mat frame;
     {
         QMutexLocker locker(m_recordInfo->mutex);
-        if (!m_recordInfo->img.empty()) {
-            frame = m_recordInfo->img.clone();
+        int front = m_recordInfo->frontIndex.load(std::memory_order_acquire);  // Читаем atomic front
+        if (!m_recordInfo->buffers[front].empty()) {
+            frame = m_recordInfo->buffers[front].clone();  // Clone для модификации
         }
     }
 
@@ -257,14 +248,15 @@ void VideoRecorder::startNewSegment() {
 
     {
         QMutexLocker locker(m_recordInfo->mutex);
-        if (m_recordInfo->img.empty()) {
+        int front = m_recordInfo->frontIndex.load(std::memory_order_acquire);
+        if (m_recordInfo->buffers[front].empty()) {
             QString errorMsg = QString("Кадр пуст для камеры %1").arg(m_recordInfo->name);
             qDebug() << errorMsg;
             if (videoWriter.isOpened()) videoWriter.release();
             emit errorOccurred("VideoRecorder", errorMsg);
             return;
         }
-        videoResolution = m_recordInfo->img.size();
+        videoResolution = m_recordInfo->buffers[front].size();
     }
 
     videoWriter.open(filePath, fourccCode, m_realFPS, videoResolution);

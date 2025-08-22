@@ -1,6 +1,8 @@
-QT += core gui openglwidgets network
+QT += core gui openglwidgets network concurrent
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+
+QMAKE_PROJECT_DEPTH = 0
 
 CONFIG += c++17
 # You can make your code fail to compile if it uses deprecated APIs.

@@ -201,9 +201,16 @@ void MainWindow::onlineStateChanged(const bool &onlineState){
 
 void MainWindow::processFrame(CameraFrameInfo* camera)
 {
-    QMutexLocker lock(camera->mutex);
-    if (camera->name == "LCamera") {
-        m_label->setPixmap(QPixmap::fromImage(camera->img));
+    QImage img;
+    {
+        QMutexLocker lock(camera->mutex);
+        int front = camera->frontIndex.load(std::memory_order_acquire);
+        if (!camera->buffers[front].isNull()) {
+            img = camera->buffers[front].copy();  // Копируем для отображения
+        }
+    }
+    if (!img.isNull() && camera->name == "LCamera") {
+        m_label->setPixmap(QPixmap::fromImage(img));
         // Обновляем геометрию оверлея при каждом обновлении изображения
         m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
     }
@@ -299,6 +306,59 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
 void MainWindow::on_takeStereoframeButton_clicked()
 {
     emit stereoShotSignal();
+}
+
+void MainWindow::on_openStereoProcessingButton_clicked() {
+    // Получаем путь к директории текущего приложения
+    QString appDir = QCoreApplication::applicationDirPath();
+
+    // Формируем полный путь к .exe
+    QString exePath = appDir + "/StereoReconstruction.exe";
+    QString exeName = "StereoReconstruction.exe";
+
+    // Проверяем, идет ли уже проверка
+    if (m_isCheckingProcess) {
+        qDebug() << "Проверка уже выполняется. Игнорируем повторное нажатие.";
+        return;
+    }
+
+    m_isCheckingProcess = true;
+
+    // Асинхронная проверка с помощью QProcess
+    QProcess* process = new QProcess(this);
+    connect(process, &QProcess::finished, this, [this, process, exePath, exeName](int exitCode, QProcess::ExitStatus exitStatus) {
+        if (exitStatus != QProcess::NormalExit || exitCode != 0) {
+            qWarning() << "Ошибка выполнения tasklist. Код выхода:" << exitCode;
+            m_isCheckingProcess = false;
+            process->deleteLater();
+            return;
+        }
+
+        QByteArray output = process->readAllStandardOutput();
+        QString outputStr = QString::fromLocal8Bit(output);
+
+        m_isCheckingProcess = false;
+        process->deleteLater();
+
+        // Если в выводе есть имя exe (значит запущена), не запускаем заново
+        if (outputStr.contains(exeName, Qt::CaseInsensitive)) {
+            return;
+        }
+
+        // Запускаем программу в отдельном процессе
+        bool started = QProcess::startDetached(exePath);
+        if (!started) {
+            qWarning() << "Failed to start external program:" << exePath;
+        }
+    });
+
+    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
+        qWarning() << "Ошибка QProcess:" << error;
+        m_isCheckingProcess = false;
+        process->deleteLater();
+    });
+
+    process->start("tasklist", QStringList() << "/FI" << QString("IMAGENAME eq %1").arg(exeName) << "/NH");
 }
 
 void MainWindow::masterSwitch()
