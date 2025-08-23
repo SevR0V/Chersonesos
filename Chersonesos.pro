@@ -27,7 +27,6 @@ SOURCES += \
     udptelemetryparser.cpp \
     video_recorder.cpp \
     video_streamer.cpp \
-    settingsdialog.cpp \
     overlaywidget.cpp
 
 HEADERS += \
@@ -48,7 +47,6 @@ HEADERS += \
     udptelemetryparser.h \
     video_recorder.h \
     video_streamer.h \
-    settingsdialog.h \
     overlaywidget.h
 
 FORMS += \

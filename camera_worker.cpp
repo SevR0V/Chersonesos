@@ -56,30 +56,29 @@ void CameraWorker::capture() {
                 cv::Mat bayerMat(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC1, stOutFrame.pBufAddr);
                 cv::Mat rawFrame(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC3);
                 cv::cvtColor(bayerMat, rawFrame, cv::COLOR_BayerRG2BGR);
-                QImage qimg = QImage(rawFrame.data, rawFrame.cols, rawFrame.rows, rawFrame.step, QImage::Format_RGB888).copy();
+                QImage qimg = QImage(rawFrame.data, rawFrame.cols, rawFrame.rows, rawFrame.step, QImage::Format_BGR888).copy();
 
-                // Для CameraFrameInfo (QImage)
                 {
                     QMutexLocker locker(m_frameInfo->mutex);
-                    int backIndex = 1 - m_frameInfo->frontIndex.load(std::memory_order_relaxed);  // Вычисляем back
-                    m_frameInfo->buffers[backIndex] = qimg;  // Пишем в back
-                    m_frameInfo->frontIndex.store(backIndex, std::memory_order_release);  // Atomic swap
+                    m_frameInfo->sharedImg = std::make_shared<QImage>(qimg);  // Создаём shared_ptr с копией QImage
                 }
 
-                // Для StreamFrameInfo (cv::Mat)
                 {
                     QMutexLocker locker(m_streamInfo->mutex);
-                    int backIndex = 1 - m_streamInfo->frontIndex.load(std::memory_order_relaxed);
-                    m_streamInfo->buffers[backIndex] = rawFrame.clone();  // Пишем в back (clone для safety)
-                    m_streamInfo->frontIndex.store(backIndex, std::memory_order_release);  // Swap
+                    m_streamInfo->frameQueue.push_back(rawFrame.clone());  // + Push clone
+                    if (m_streamInfo->frameQueue.size() > m_streamInfo->maxQueueSize) {
+                        m_streamInfo->frameQueue.pop_front();  // + Drop старый
+                        qDebug() << "Dropped old frame from stream queue for" << m_frameInfo->name;  // + Опциональный лог для отладки
+                    }
                 }
 
-                // Для RecordFrameInfo (cv::Mat)
                 {
                     QMutexLocker locker(m_recordInfo->mutex);
-                    int backIndex = 1 - m_recordInfo->frontIndex.load(std::memory_order_relaxed);
-                    m_recordInfo->buffers[backIndex] = rawFrame.clone();  // Пишем в back
-                    m_recordInfo->frontIndex.store(backIndex, std::memory_order_release);  // Swap
+                    m_recordInfo->frameQueue.push_back(rawFrame.clone());  // + Push clone
+                    if (m_recordInfo->frameQueue.size() > m_recordInfo->maxQueueSize) {
+                        m_recordInfo->frameQueue.pop_front();  // + Drop старый
+                        qDebug() << "Dropped old frame from record queue for" << m_frameInfo->name;  // + Опциональный лог для отладки
+                    }
                 }
             }
 

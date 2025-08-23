@@ -112,15 +112,15 @@ void VideoStreamer::streamFrames(QTcpSocket* client) {
         cv::Mat frame;
         {
             QMutexLocker locker(m_streamInfo->mutex);
-            int front = m_streamInfo->frontIndex.load(std::memory_order_acquire);  // Читаем atomic front
-            if (!m_streamInfo->buffers[front].empty()) {
-                frame = m_streamInfo->buffers[front].clone();  // Clone для модификации
+            if (!m_streamInfo->frameQueue.empty()) {
+                frame = m_streamInfo->frameQueue.front();  // + Берём front (shallow copy)
+                m_streamInfo->frameQueue.pop_front();      // + Удаляем из queue
+                frame = frame.clone();                     // + Clone для модификации (safety)
             }
         }
 
         if (!frame.empty()) {
             try {
-                cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
                 std::vector<uchar> buffer;
                 std::vector<int> compression_params;
                 cv::resize(frame, frame, cv::Size(800, 600));

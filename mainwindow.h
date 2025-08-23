@@ -57,7 +57,7 @@ private slots:
     void processFrame(CameraFrameInfo* camera);
     void handleCameraError(const QString& component, const QString& message);
     void handleCameraSuccess(const QString& component, const QString& message);
-    void afterReconnect(Camera* camera);
+    void afterReconnect();
     void on_takeStereoframeButton_clicked();
     void on_openStereoProcessingButton_clicked();
     void onDatagramReceived(const QByteArray &data, const QHostAddress &sender, quint16 port);

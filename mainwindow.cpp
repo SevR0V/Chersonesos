@@ -204,15 +204,15 @@ void MainWindow::processFrame(CameraFrameInfo* camera)
     QImage img;
     {
         QMutexLocker lock(camera->mutex);
-        int front = camera->frontIndex.load(std::memory_order_acquire);
-        if (!camera->buffers[front].isNull()) {
-            img = camera->buffers[front].copy();  // Копируем для отображения
+        if (camera->sharedImg) {
+            img = *camera->sharedImg;
         }
     }
     if (!img.isNull() && camera->name == "LCamera") {
         m_label->setPixmap(QPixmap::fromImage(img));
-        // Обновляем геометрию оверлея при каждом обновлении изображения
         m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
+    } else {
+        qDebug() << "Пустой кадр или неверная камера для отображения:" << camera->name;
     }
 }
 
@@ -281,7 +281,7 @@ void MainWindow::handleCameraSuccess(const QString& component, const QString& me
 {
 }
 
-void MainWindow::afterReconnect(Camera* camera)
+void MainWindow::afterReconnect()
 {
     if (isRecording) {
         emit startRecordingSignal("LCamera", 120, 0);

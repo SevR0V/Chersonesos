@@ -6,6 +6,8 @@
 #include <QList>
 #include <QStringList>
 #include <QTimer>
+#include <QtConcurrent>
+#include <QLoggingCategory>
 #include <set>
 #include <filesystem>
 #include <sstream>
@@ -17,7 +19,6 @@
 #include "camera_worker.h"
 #include "video_recorder.h"
 #include "video_streamer.h"
-#include <QtConcurrent>
 
 class CameraWorker;
 class VideoRecorder;

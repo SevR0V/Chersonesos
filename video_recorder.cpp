@@ -13,45 +13,53 @@ void VideoRecorder::setStoredVideoFilesLimit(int limit) {
 }
 
 void VideoRecorder::manageStoredFiles() {
-    if (m_storedVideoFilesLimit == 0) {
-        QString errorMsg = QString("Старые записи не удаляются: проверяйте свободное место для камеры %1").arg(m_recordInfo->name);
-        qDebug() << errorMsg;
-        emit errorOccurred("VideoRecorder", errorMsg);
-        return;
-    }
-
-    try {
-        std::vector<std::filesystem::directory_entry> videoFiles;
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(m_sessionDirectory)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".avi") {
-                videoFiles.push_back(entry);
-            }
+    // Асинхронное сохранение в фоне
+    QThreadPool::globalInstance()->start([=]() {
+        if (m_storedVideoFilesLimit == 0) {
+            QString errorMsg = QString("Старые записи не удаляются: проверяйте свободное место для камеры %1").arg(m_recordInfo->name);
+            qDebug() << errorMsg;
+            emit errorOccurred("VideoRecorder", errorMsg);
+            return;
         }
 
-        std::sort(videoFiles.begin(), videoFiles.end(),
-                  [](const std::filesystem::directory_entry& a, const std::filesystem::directory_entry& b) {
-                      return std::filesystem::last_write_time(a) < std::filesystem::last_write_time(b);
-                  });
+        try {
+            // Если кэш пустой — полный scan и заполнение
+            if (cachedFiles.empty()) {
+                for (const auto& entry : std::filesystem::recursive_directory_iterator(m_sessionDirectory)) {
+                    if (entry.is_regular_file() && entry.path().extension() == ".avi") {
+                        cachedFiles.push_back(entry.path());
+                    }
+                }
+                // Sort по last_write_time
+                std::sort(cachedFiles.begin(), cachedFiles.end(),
+                          [](const std::filesystem::path& a, const std::filesystem::path& b) {
+                              return std::filesystem::last_write_time(a) < std::filesystem::last_write_time(b);
+                          });
+            }  // Иначе — кэш уже отсортирован (обновляется incrementally)
 
-        while (videoFiles.size() > static_cast<size_t>(m_storedVideoFilesLimit)) {
-            try {
-                std::filesystem::remove(videoFiles.front().path());
-                qDebug() << "Удален старый видеофайл:" << QString::fromStdString(videoFiles.front().path().string());
-                videoFiles.erase(videoFiles.begin());
-            } catch (const std::filesystem::filesystem_error& e) {
-                QString errorMsg = QString("Ошибка при удалении старого видеофайла %1: %2")
-                                       .arg(QString::fromStdString(videoFiles.front().path().string()))
-                                       .arg(e.what());
-                qDebug() << errorMsg;
-                emit errorOccurred("VideoRecorder", errorMsg);
+            // Удаляем excess из front (старые)
+            while (cachedFiles.size() > static_cast<size_t>(m_storedVideoFilesLimit)) {
+                try {
+                    std::filesystem::remove(cachedFiles.front());
+                    qDebug() << "Удален старый видеофайл:" << QString::fromStdString(cachedFiles.front().string());
+                    cachedFiles.erase(cachedFiles.begin());
+                } catch (const std::filesystem::filesystem_error& e) {
+                    QString errorMsg = QString("Ошибка при удалении старого видеофайла %1: %2")
+                                           .arg(QString::fromStdString(cachedFiles.front().string()))
+                                           .arg(e.what());
+                    qDebug() << errorMsg;
+                    emit errorOccurred("VideoRecorder", errorMsg);
+                    cachedFiles.erase(cachedFiles.begin());  // Удаляем из кэша даже если fs ошибка
+                }
             }
+        } catch (const std::filesystem::filesystem_error& e) {
+            QString errorMsg = QString("Ошибка при управлении видеофайлами для камеры %1: %2")
+                                   .arg(m_recordInfo->name).arg(e.what());
+            qDebug() << errorMsg;
+            emit errorOccurred("VideoRecorder", errorMsg);
+            cachedFiles.clear();  // Сбрасываем кэш при ошибке
         }
-    } catch (const std::filesystem::filesystem_error& e) {
-        QString errorMsg = QString("Ошибка при управлении видеофайлами для камеры %1: %2")
-                               .arg(m_recordInfo->name).arg(e.what());
-        qDebug() << errorMsg;
-        emit errorOccurred("VideoRecorder", errorMsg);
-    }
+    });
 }
 
 void VideoRecorder::startRecording() {
@@ -185,10 +193,17 @@ void VideoRecorder::stopRecording() {
         videoWriter.release();
         qDebug() << "Запись видео завершена для камеры" << m_recordInfo->name;
         emit recordingFinished();
+
+        // + Обновление кэша: Добавляем последний файл
+        std::filesystem::path newFilePath = m_sessionDirectory / fileName;
+        cachedFiles.push_back(newFilePath);
+        std::sort(cachedFiles.begin(), cachedFiles.end(),
+                  [](const std::filesystem::path& a, const std::filesystem::path& b) {
+                      return std::filesystem::last_write_time(a) < std::filesystem::last_write_time(b);
+                  });
     }
     manageStoredFiles();
 }
-
 void VideoRecorder::recordFrame() {
     if (!m_isRecording) {
         return;
@@ -197,15 +212,15 @@ void VideoRecorder::recordFrame() {
     cv::Mat frame;
     {
         QMutexLocker locker(m_recordInfo->mutex);
-        int front = m_recordInfo->frontIndex.load(std::memory_order_acquire);  // Читаем atomic front
-        if (!m_recordInfo->buffers[front].empty()) {
-            frame = m_recordInfo->buffers[front].clone();  // Clone для модификации
+        if (!m_recordInfo->frameQueue.empty()) {
+            frame = m_recordInfo->frameQueue.front();  // + Берём front
+            m_recordInfo->frameQueue.pop_front();      // + Удаляем
+            //frame = frame.clone();                     // + Clone для модификации
         }
     }
 
     if (!frame.empty() && videoWriter.isOpened()) {
         try {
-            cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
             videoWriter.write(frame);
             m_frameCount++;
             qDebug() << "Записан кадр #" << m_frameCount << "для файла" << QString::fromStdString(fileName)
@@ -221,14 +236,22 @@ void VideoRecorder::recordFrame() {
         qDebug() << "Пропущен пустой кадр или VideoWriter не открыт для камеры" << m_recordInfo->name;
     }
 
-    // Updated check: Prioritize frame count; use time only as safeguard (e.g., if FPS drops below ~13 FPS)
     int maxFrames = m_recordInterval * m_realFPS;
-    if (m_frameCount >= maxFrames || m_timer.elapsed() >= m_recordInterval * 1500) {  // 1.5x interval = 180s max
+    if (m_frameCount >= maxFrames || m_timer.elapsed() >= m_recordInterval * 1500) {
         if (videoWriter.isOpened()) {
             videoWriter.release();
             qDebug() << "Запись сегмента видео завершена для файла:" << QString::fromStdString(fileName)
                      << ", кадров:" << m_frameCount << ", время:" << m_timer.elapsed() / 1000.0 << "секунд";
             emit recordingFinished();
+
+            // + Обновление кэша: Добавляем новый файл
+            std::filesystem::path newFilePath = m_sessionDirectory / fileName;
+            cachedFiles.push_back(newFilePath);
+            // Sort кэша (можно оптимизировать, но просто для small size)
+            std::sort(cachedFiles.begin(), cachedFiles.end(),
+                      [](const std::filesystem::path& a, const std::filesystem::path& b) {
+                          return std::filesystem::last_write_time(a) < std::filesystem::last_write_time(b);
+                      });
         }
         startNewSegment();
         manageStoredFiles();
@@ -237,6 +260,7 @@ void VideoRecorder::recordFrame() {
         m_timer.start();
         qDebug() << "Новый сегмент начат для камеры" << m_recordInfo->name;
     }
+
 }
 
 void VideoRecorder::startNewSegment() {
@@ -248,15 +272,14 @@ void VideoRecorder::startNewSegment() {
 
     {
         QMutexLocker locker(m_recordInfo->mutex);
-        int front = m_recordInfo->frontIndex.load(std::memory_order_acquire);
-        if (m_recordInfo->buffers[front].empty()) {
-            QString errorMsg = QString("Кадр пуст для камеры %1").arg(m_recordInfo->name);
+        if (m_recordInfo->frameQueue.empty()) {
+            QString errorMsg = QString("Queue пустая для камеры %1").arg(m_recordInfo->name);
             qDebug() << errorMsg;
             if (videoWriter.isOpened()) videoWriter.release();
             emit errorOccurred("VideoRecorder", errorMsg);
             return;
         }
-        videoResolution = m_recordInfo->buffers[front].size();
+        videoResolution = m_recordInfo->frameQueue.front().size();  // + Берём size из front (без pop)
     }
 
     videoWriter.open(filePath, fourccCode, m_realFPS, videoResolution);

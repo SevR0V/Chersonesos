@@ -6,6 +6,7 @@
 #include <QThread>
 #include <QElapsedTimer>
 #include <QMutexLocker>
+#include <QtConcurrent>
 #include <filesystem>
 #include <sstream>
 #include <ctime>
@@ -34,6 +35,7 @@ signals:
     void errorOccurred(const QString& component, const QString& message);
 
 private:
+    std::vector<std::filesystem::path> cachedFiles;
     void manageStoredFiles();
     void startNewSegment();
     std::string sanitizeFileName(const std::string& input);
