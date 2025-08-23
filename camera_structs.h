@@ -8,6 +8,8 @@
 #include <opencv2/opencv.hpp>
 #include "MvCameraControl.h"
 #include <filesystem>
+#include <array>      // + Добавлено
+#include <atomic>     // + Добавлено
 
 class CameraWorker;
 class FrameProcessor;
@@ -24,7 +26,9 @@ struct CameraFrameInfo {
     CameraWorker* worker = nullptr;   // Рабочий объект для захвата
     QThread* thread = nullptr;        // Поток для захвата
     WId labelWinId = 0;               // Дескриптор окна для отображения
-    QImage img;
+    // QImage img;                    // - Удалено, заменено на buffers
+    std::array<QImage, 2> buffers;    // + Два буфера для double-buffering
+    std::atomic<int> frontIndex{0};   // + Atomic для swap
 
     CameraFrameInfo() {
         mutex = new QMutex();
@@ -39,7 +43,9 @@ struct CameraFrameInfo {
 struct StreamFrameInfo {
     QString name;                     // Имя камеры
     unsigned int id = -1;             // ID камеры в списке устройств
-    cv::Mat img;                      // Текущий кадр для стриминга
+    // cv::Mat img;                   // - Удалено, заменено на buffers
+    std::array<cv::Mat, 2> buffers;   // + Два буфера для double-buffering
+    std::atomic<int> frontIndex{0};   // + Atomic для swap
     QMutex* mutex = nullptr;          // Указатель на мьютекс для синхронизации
     VideoStreamer* streamer = nullptr; // Объект для стриминга видео
     QThread* streamerThread = nullptr; // Поток для стриминга видео
@@ -57,7 +63,9 @@ struct StreamFrameInfo {
 struct RecordFrameInfo {
     QString name;                     // Имя камеры
     unsigned int id = -1;             // ID камеры в списке устройств
-    cv::Mat img;                      // Текущий кадр для записи
+    // cv::Mat img;                   // - Удалено, заменено на buffers
+    std::array<cv::Mat, 2> buffers;   // + Два буфера для double-buffering
+    std::atomic<int> frontIndex{0};   // + Atomic для swap
     QMutex* mutex = nullptr;          // Указатель на мьютекс для синхронизации
     VideoRecorder* recorder = nullptr; // Объект для записи видео
     QThread* recorderThread = nullptr; // Поток для записи видео
@@ -71,6 +79,5 @@ struct RecordFrameInfo {
         delete mutex;
     }
 };
-
 
 #endif // CAMERA_STRUCTS_H

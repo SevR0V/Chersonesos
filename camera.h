@@ -17,6 +17,7 @@
 #include "camera_worker.h"
 #include "video_recorder.h"
 #include "video_streamer.h"
+#include <QtConcurrent>
 
 class CameraWorker;
 class VideoRecorder;

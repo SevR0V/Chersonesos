@@ -53,22 +53,33 @@ void CameraWorker::capture() {
         nRet = MV_CC_GetImageBuffer(m_frameInfo->handle, &stOutFrame, 500);
         if (nRet == MV_OK && stOutFrame.pBufAddr) {
             {
-
                 cv::Mat bayerMat(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC1, stOutFrame.pBufAddr);
                 cv::Mat rawFrame(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC3);
                 cv::cvtColor(bayerMat, rawFrame, cv::COLOR_BayerRG2BGR);
                 QImage qimg = QImage(rawFrame.data, rawFrame.cols, rawFrame.rows, rawFrame.step, QImage::Format_RGB888).copy();
+
+                // Для CameraFrameInfo (QImage)
                 {
                     QMutexLocker locker(m_frameInfo->mutex);
-                    m_frameInfo->img = qimg;
+                    int backIndex = 1 - m_frameInfo->frontIndex.load(std::memory_order_relaxed);  // Вычисляем back
+                    m_frameInfo->buffers[backIndex] = qimg;  // Пишем в back
+                    m_frameInfo->frontIndex.store(backIndex, std::memory_order_release);  // Atomic swap
                 }
+
+                // Для StreamFrameInfo (cv::Mat)
                 {
-                    QMutexLocker streamLocker(m_streamInfo->mutex);
-                    m_streamInfo->img = rawFrame.clone();
+                    QMutexLocker locker(m_streamInfo->mutex);
+                    int backIndex = 1 - m_streamInfo->frontIndex.load(std::memory_order_relaxed);
+                    m_streamInfo->buffers[backIndex] = rawFrame.clone();  // Пишем в back (clone для safety)
+                    m_streamInfo->frontIndex.store(backIndex, std::memory_order_release);  // Swap
                 }
+
+                // Для RecordFrameInfo (cv::Mat)
                 {
-                    QMutexLocker recordLocker(m_recordInfo->mutex);
-                    m_recordInfo->img = rawFrame.clone();
+                    QMutexLocker locker(m_recordInfo->mutex);
+                    int backIndex = 1 - m_recordInfo->frontIndex.load(std::memory_order_relaxed);
+                    m_recordInfo->buffers[backIndex] = rawFrame.clone();  // Пишем в back
+                    m_recordInfo->frontIndex.store(backIndex, std::memory_order_release);  // Swap
                 }
             }
 

@@ -10,6 +10,8 @@
 #include <QDebug>
 #include <QTimer>
 #include <QKeyEvent>
+#include <QProcess>
+#include <QCoreApplication>
 #include "ui_mainwindow.h"
 #include "camera.h"
 #include "controlwindow.h"
@@ -22,6 +24,7 @@
 #include <QResizeEvent>
 #include "SettingsManager.h"
 #include "overlaywidget.h"
+
 
 class OverlayWidget;
 
@@ -56,6 +59,7 @@ private slots:
     void handleCameraSuccess(const QString& component, const QString& message);
     void afterReconnect(Camera* camera);
     void on_takeStereoframeButton_clicked();
+    void on_openStereoProcessingButton_clicked();
     void onDatagramReceived(const QByteArray &data, const QHostAddress &sender, quint16 port);
     void onJoystickUpdate(const DualJoystickState &state);
     void onlineStateChanged(const bool &onlineState);
@@ -97,6 +101,7 @@ private:
     bool stabPitchEnabled;
     bool stabYawEnabled;
     bool stabDepthEnabled;
+    bool m_isCheckingProcess;
 
     UdpTelemetryParser *telemetryParser;
     TelemetryPacket telemetryPacket;
