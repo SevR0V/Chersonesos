@@ -7,6 +7,7 @@
 #include "udptelemetryparser.h"
 #include <QColor>
 #include <QPoint>
+#include <opencv2/opencv.hpp>
 
 class OverlayWidget : public QWidget
 {
@@ -24,6 +25,8 @@ public:
                         const float& powerLimit,
                         const float& camAngle,
                         const bool &lightsState);
+
+    cv::Mat getOverlayAsMat(int width, int height);
 
 public slots:
 
@@ -58,6 +61,7 @@ private:
     QWidget *parentWidget;
 
     void countRevolutions();
+    void drawOverlay(QPainter* painter, int width, int height);
 
 protected:
     void paintEvent(QPaintEvent *event) override;

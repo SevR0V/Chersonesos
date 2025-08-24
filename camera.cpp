@@ -68,8 +68,8 @@ void Camera::stopAllCameras() {
     stopAll();
 }
 
-void Camera::startRecordingSlot(const QString& cameraName, int recordInterval, int storedVideoFilesLimit) {
-    startRecording(cameraName, recordInterval, storedVideoFilesLimit);
+void Camera::startRecordingSlot(const QString& cameraName, int recordInterval, int storedVideoFilesLimit, RecordMode mode) {
+    startRecording(cameraName, recordInterval, storedVideoFilesLimit, mode);  // Передаём mode
 }
 
 void Camera::stopRecordingSlot(const QString& cameraName) {
@@ -100,6 +100,7 @@ void Camera::initializeCameras() {
         CameraFrameInfo* frameInfo = m_cameras[i];
         StreamFrameInfo* streamInfo = m_streamInfos[i];
         RecordFrameInfo* recordInfo = m_recordInfos[i];
+        OverlayFrameInfo* overlayInfo = m_overlayInfos[i];
         qCDebug(catCamera) << "Инициализация камеры" << frameInfo->name << "с ID" << frameInfo->id;
         getHandle(frameInfo->id, &frameInfo->handle, frameInfo->name.toStdString());
         streamInfo->id = frameInfo->id;
@@ -142,7 +143,7 @@ void Camera::initializeCameras() {
         frameInfo->worker->moveToThread(frameInfo->thread);
         qCDebug(catCamera) << "Создан поток захвата для камеры" << frameInfo->name;
 
-        recordInfo->recorder = new VideoRecorder(recordInfo);
+        recordInfo->recorder = new VideoRecorder(recordInfo, overlayInfo);
         recordInfo->recorderThread = new QThread(this);
         recordInfo->recorder->moveToThread(recordInfo->recorderThread);
         recordInfo->recorderThread->start();
@@ -180,6 +181,7 @@ void Camera::reinitializeCameras() {
         CameraFrameInfo* frameInfo = m_cameras[i];
         StreamFrameInfo* streamInfo = m_streamInfos[i];
         RecordFrameInfo* recordInfo = m_recordInfos[i];
+        OverlayFrameInfo* overlayInfo = m_overlayInfos[i];
         qCDebug(catCamera) << "Инициализация камеры" << frameInfo->name << "с ID" << frameInfo->id;
         getHandle(frameInfo->id, &frameInfo->handle, frameInfo->name.toStdString());
         streamInfo->id = frameInfo->id;
@@ -222,7 +224,7 @@ void Camera::reinitializeCameras() {
         frameInfo->worker->moveToThread(frameInfo->thread);
         qCDebug(catCamera) << "Создан поток захвата для камеры" << frameInfo->name;
 
-        recordInfo->recorder = new VideoRecorder(recordInfo);
+        recordInfo->recorder = new VideoRecorder(recordInfo, overlayInfo);
         recordInfo->recorderThread = new QThread(this);
         recordInfo->recorder->moveToThread(recordInfo->recorderThread);
         recordInfo->recorderThread->start();
@@ -340,7 +342,7 @@ void Camera::stopAll() {
     qCDebug(catCamera) << "Все потоки остановлены.";
 }
 
-void Camera::startRecording(const QString& cameraName, int recordInterval, int storedVideoFilesLimit) {
+void Camera::startRecording(const QString& cameraName, int recordInterval, int storedVideoFilesLimit, RecordMode mode) {
     qCDebug(catCamera) << "Попытка запуска записи для камеры" << cameraName;
     bool cameraFound = false;
     for (int i = 0; i < m_cameras.size(); ++i) {
@@ -350,6 +352,7 @@ void Camera::startRecording(const QString& cameraName, int recordInterval, int s
             CameraFrameInfo* frameInfo = m_cameras[i];
             if (recordInfo->recorder && recordInfo->recorderThread) {
                 qCDebug(catCamera) << "Запуск записи для камеры" << recordInfo->name;
+                recordInfo->recorder->setRecordMode(mode);
                 recordInfo->recorder->setRecordInterval(recordInterval);
                 recordInfo->recorder->setStoredVideoFilesLimit(storedVideoFilesLimit);
 

@@ -41,7 +41,7 @@ public:
 signals:
     void startCameraSignal();
     void stopAllCamerasSignal();
-    void startRecordingSignal(const QString& cameraName, int recordInterval, int storedVideoFilesLimit);
+    void startRecordingSignal(const QString& cameraName, int recordInterval, int storedVideoFilesLimit, RecordMode mode);
     void stopRecordingSignal(const QString& cameraName);
     void startStreamingSignal(const QString& cameraName, int port);
     void stopStreamingSignal(const QString& cameraName);

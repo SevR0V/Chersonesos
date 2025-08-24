@@ -75,4 +75,19 @@ struct RecordFrameInfo {
     }
 };
 
+// Структура для оверлея
+struct OverlayFrameInfo {
+    std::deque<cv::Mat> overlayQueue;       // Циклический буфер для оверлеев
+    const int maxQueueSize = 3;             // Размер буфера
+    QMutex* mutex = nullptr;                // Указатель на мьютекс для синхронизации
+
+    OverlayFrameInfo() {
+        mutex = new QMutex();
+    }
+
+    ~OverlayFrameInfo() {
+        delete mutex;
+    }
+};
+
 #endif // CAMERA_STRUCTS_H

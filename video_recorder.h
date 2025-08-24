@@ -16,12 +16,19 @@
 #include <opencv2/opencv.hpp>
 #include "camera_structs.h"
 
+enum RecordMode {
+    NoOverlay,
+    WithOverlay,
+    Both
+};
+
 class VideoRecorder : public QObject {
     Q_OBJECT
 public:
-    explicit VideoRecorder(RecordFrameInfo* recordInfo, QObject* parent = nullptr);
+    explicit VideoRecorder(RecordFrameInfo* recordInfo, OverlayFrameInfo* overlayInfo, QObject* parent = nullptr);
     void setRecordInterval(int interval);
     void setStoredVideoFilesLimit(int limit);
+    void setRecordMode(RecordMode mode);
 
 public slots:
     void startRecording();
@@ -52,6 +59,10 @@ private:
     std::filesystem::path m_sessionDirectory;
     int m_frameCount; // Счетчик кадров для текущего сегмента
     int m_realFPS; // Заданный FPS для записи
+    OverlayFrameInfo* m_overlayInfo;
+    RecordMode m_recordMode;
+    cv::VideoWriter videoWriterOverlay;
+    std::string fileNameOverlay;
 };
 
 #endif // VIDEO_RECORDER_H

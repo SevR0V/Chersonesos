@@ -281,12 +281,11 @@ void MainWindow::handleCameraSuccess(const QString& component, const QString& me
 {
 }
 
-void MainWindow::afterReconnect()
-{
+void MainWindow::afterReconnect() {
     if (isRecording) {
-        emit startRecordingSignal("LCamera", 120, 0);
+        emit startRecordingSignal("LCamera", 120, 0, NoOverlay);  // Добавлен RecordMode
         if (isStereoRecording) {
-            emit startRecordingSignal("RCamera", 120, 0);
+            emit startRecordingSignal("RCamera", 120, 0, NoOverlay);  // Добавлен RecordMode
         }
     }
     emit startStreamingSignal("LCamera", 8080);
@@ -383,8 +382,7 @@ void setMasterButtonState(QPushButton *button, const bool masterState, const boo
     }
 }
 
-void MainWindow::startRecord()
-{
+void MainWindow::startRecord() {
     // ui->recordStereoCheckBox->setDisabled(!isRecording);
     isRecording = !isRecording;
     // isStereoRecording = ui->recordStereoCheckBox->isChecked();
@@ -392,9 +390,9 @@ void MainWindow::startRecord()
     setRecordButtonState(ui->startRecordButton, isRecording, isPanelHidden);
 
     if (isRecording) {
-        emit startRecordingSignal("LCamera", 120, 0);
+        emit startRecordingSignal("LCamera", 120, 0, NoOverlay);  // Добавлен RecordMode
         if (isStereoRecording) {
-            emit startRecordingSignal("RCamera", 120, 0);
+            emit startRecordingSignal("RCamera", 120, 0, NoOverlay);  // Добавлен RecordMode
         }
     } else {
         emit stopRecordingSignal("LCamera");

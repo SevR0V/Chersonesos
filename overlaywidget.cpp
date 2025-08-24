@@ -1,6 +1,8 @@
+// overlaywidget.cpp
 #include "overlaywidget.h"
 #include <QScreen>
 #include <QWindow>
+#include <cmath>  // For std::hypot, std::round, etc.
 
 OverlayWidget::OverlayWidget(QWidget *parent) : QWidget(parent)
 {
@@ -37,7 +39,6 @@ OverlayWidget::OverlayWidget(QWidget *parent) : QWidget(parent)
     connect(frameTimer, &QTimer::timeout, this, &OverlayWidget::updateOverlay);
     frameTimer->start(1000/refreshRate);
 }
-
 
 void drawCrosshair(QPainter* painter, const QPoint& center, int size, int lineWidth, int gap, const QColor& color) {
     if (!painter || size <= 0 || lineWidth <= 0)
@@ -267,8 +268,6 @@ void drawVerticalRuler(QPainter* painter,
                         ? baseX - textRect.width() - 8
                         : baseX + 8;
 
-        // int textY = pointerY + textRect.height() / 2 - fm.descent();
-
         QRect labelRect(textX, pointerY - textRect.height() / 2,
                         textRect.width(), textRect.height());
         if(pointerLeft)
@@ -302,6 +301,7 @@ void drawVerticalRuler(QPainter* painter,
 
         if (hollowSetpoint) {
             pen.setWidth(1);
+            painter->setPen(pen);
             painter->setBrush(Qt::NoBrush);
             painter->drawPolygon(arrow);
         } else {
@@ -321,7 +321,6 @@ void drawVerticalRuler(QPainter* painter,
                             ? baseX - textRect.width() - 8
                             : baseX + 8;
 
-            // int textY = setpointY + textRect.height() / 2 - fm.descent();
             QRect labelRect(textX, setpointY - textRect.height() / 2,
                             textRect.width(), textRect.height());
             if(pointerLeft)
@@ -474,14 +473,18 @@ void drawHorizontalRuler(QPainter* painter,
 
         if (hollowSetpoint) {
             pen.setWidth(1);
+            painter->setPen(pen);
             painter->setBrush(Qt::NoBrush);
+            painter->drawPolygon(arrow);
         } else {
             painter->setBrush(color);
+            painter->drawPolygon(arrow);
         }
-        painter->drawPolygon(arrow);
 
-        int distanceToMain = std::abs(setpointX - (leftCenter.x() + static_cast<int>(pointerPosNormalized * (totalDivisions - 1) * step)));
+        // Вычисляем расстояние по X между стрелками
+        int distanceToMain = std::abs(setpointX - (leftCenter.x() + static_cast<int>(pointerPosNormalized * rulerWidth)));
 
+        // Подпись уставки показывается только если указатели далеко
         if (distanceToMain >= setpointLabelHideThreshold && !setpointLabel.isEmpty()) {
             QFontMetrics fm = painter->fontMetrics();
             QRect textRect = fm.boundingRect(setpointLabel);
@@ -500,120 +503,143 @@ void drawHorizontalRuler(QPainter* painter,
         QFontMetrics fm = painter->fontMetrics();
         QRect titleRect = fm.boundingRect(rulerTitle);
 
-        int rulerWidth = (totalDivisions - 1) * step;
-        int rulerCenterX = leftCenter.x() + rulerWidth / 2;
-
-        int textX = rulerCenterX - titleRect.width() / 2;
+        int textX = leftCenter.x() - titleRect.width() / 2;
         int textY = alignTop
                         ? leftCenter.y() - longTickLength - titleOffset - titleRect.height()
                         : leftCenter.y() + longTickLength + titleOffset;
 
-        QRect titleRectAligned(textX, textY, titleRect.width(), titleRect.height());
-        painter->drawText(titleRectAligned, Qt::AlignHCenter | Qt::AlignTop, rulerTitle);
+        painter->drawText(QPoint(textX, textY), rulerTitle);
     }
 
     painter->setFont(oldFont);
 }
 
+void drawBatteryIcon(QPainter* painter,
+                     const QRect& rect,
+                     float value,
+                     const QColor& borderColor,
+                     const QColor& fillColor,
+                     int borderWidth,
+                     bool drawText = true,
+                     bool drawPercentage = true,
+                     const QFont& font = QFont(),
+                     const QColor& textColor = Qt::black) {
+    if (!painter || value < 0.0f || value > 1.0f) return;
+
+    QPen pen(borderColor);
+    pen.setWidth(borderWidth);
+    painter->setPen(pen);
+    painter->setBrush(Qt::NoBrush);
+
+    // Рисуем корпус батареи
+    painter->drawRect(rect);
+
+    // Заполнение уровня
+    int fillWidth = static_cast<int>(rect.width() * value);
+    QRect fillRect = rect.adjusted(borderWidth / 2, borderWidth / 2, -borderWidth / 2, -borderWidth / 2);
+    fillRect.setWidth(fillWidth);
+    painter->setBrush(fillColor);
+    painter->drawRect(fillRect);
+
+    // Текст
+    if (drawText) {
+        painter->setFont(font);
+        painter->setPen(textColor);
+        QString text = drawPercentage ? QString("%1%").arg(static_cast<int>(value * 100)) : QString::number(value * 100);
+        painter->drawText(rect, Qt::AlignCenter, text);
+    }
+}
+
 void drawVerticalSlidingRuler(QPainter* painter,
                               const QPoint& center,
-                              int visibleDivisions,
+                              int totalDivisions,
                               int step,
                               int shortTickLength,
                               int longTickLength,
                               int lineWidth,
                               const QColor& color,
-                              double currentValue,
-                              double divisionStepValue = 1.0,
-                              const QFont& font = QFont(),
-                              std::function<QString(double)> labelFormatter = nullptr,
-                              bool hollowPointer = false,
+                              double value,
+                              double scaleStep,
+                              const QFont& font,
+                              std::function<QString(double)> labelFormatter,
+                              bool hollowPointer,
                               QString rulerTitle = "",
                               int titleOffset = 4,
-                              bool showCurrentLabel = false,
-                              QString currentLabel = "",
-                              int currentLabelOffset = 6,
-                              int pointerSize = 6,
+                              bool showPointerLabel = false,
+                              QString pointerLabel = "",
+                              int pointerLabelOffset = 4,
+                              int pointerSize = 8,
                               int pointerOffset = 4) {
-    if (!painter || visibleDivisions <= 0 || step <= 0 || divisionStepValue <= 0.0)
+    if (!painter || totalDivisions <= 0 || step <= 0 || scaleStep <= 0)
         return;
 
     QPen pen(color);
     pen.setWidth(lineWidth);
     painter->setPen(pen);
     painter->setBrush(Qt::NoBrush);
+
     painter->setFont(font);
 
-    QFontMetrics fm = painter->fontMetrics();
-    int cx = center.x();
-    int cy = center.y();
+    int rulerHeight = (totalDivisions - 1) * step;
+    int topY = center.y() - rulerHeight / 2;
 
-    // Диапазон значений, которые попадают в шкалу
-    double halfRange = (visibleDivisions / 2.0) * divisionStepValue;
-    double minValue = currentValue - halfRange;
-    double maxValue = currentValue + halfRange;
+    // Вычисляем смещение на основе значения
+    double offset = std::fmod(value, scaleStep) / scaleStep * step;
+    int startLabel = std::floor(value / scaleStep) - (totalDivisions / 2);
 
-    // Начинаем с ближайшего меньшего "основного" деления
-    double startValue = std::floor(minValue / divisionStepValue) * divisionStepValue;
+    for (int i = 0; i < totalDivisions; ++i) {
+        int tickLength = (i % 5 == 0) ? longTickLength : shortTickLength;
+        int yPos = topY + i * step + static_cast<int>(offset);
 
-    for (double val = startValue; val <= maxValue + divisionStepValue; val += divisionStepValue) {
-        double delta = val - currentValue;
-        int yPos = cy + static_cast<int>(delta / divisionStepValue * step);
+        painter->drawLine(center.x(), yPos, center.x() + tickLength, yPos);
 
-        // Пропустить, если далеко (за экраном)
-        if (std::abs(yPos - cy) > (visibleDivisions * step / 2 + step))
-            continue;
-
-        bool isMajor = std::fmod(std::fabs(val), divisionStepValue * 5.0) < 1e-6;
-        int tickLength = isMajor ? longTickLength : shortTickLength;
-
-        int xStart = cx;
-        int xEnd = cx + tickLength;
-
-        painter->drawLine(xStart, yPos, xEnd, yPos);
-
-        if (isMajor && labelFormatter) {
-            QString label = labelFormatter(val);
+        if (i % 5 == 0) {
+            QString label = labelFormatter((startLabel + i) * scaleStep);
+            QFontMetrics fm = painter->fontMetrics();
             QRect textRect = fm.boundingRect(label);
 
-            int textX = xEnd + 4;
+            int textX = center.x() + tickLength + 4;
             int textY = yPos + textRect.height() / 2 - fm.descent();
 
             painter->drawText(QPoint(textX, textY), label);
         }
     }
 
-    // Указатель (треугольник вправо)
+    // Указатель в центре
+    int pointerY = center.y();
     int halfHeight = pointerSize / 2;
-    int tipX = cx - pointerOffset;          // кончик стрелки чуть левее шкалы
-    int baseX = tipX - pointerSize;         // основание стрелки ещё левее
+
+    int tipX = center.x() - pointerOffset;
+    int baseX = tipX - pointerSize;
 
     QPolygon arrow;
-    arrow << QPoint(tipX, cy)
-          << QPoint(baseX, cy - halfHeight)
-          << QPoint(baseX, cy + halfHeight);
+    arrow << QPoint(tipX, pointerY)
+          << QPoint(baseX, pointerY - halfHeight)
+          << QPoint(baseX, pointerY + halfHeight);
 
     if (hollowPointer) {
         painter->setBrush(Qt::NoBrush);
+        painter->drawPolygon(arrow);
     } else {
         painter->setBrush(color);
-    }
-    painter->drawPolygon(arrow);
-
-    // Подпись текущего значения
-    if (showCurrentLabel && !currentLabel.isEmpty()) {
-        QRect textRect = fm.boundingRect(currentLabel);
-        int textX = cx - textRect.width() - currentLabelOffset;
-        int textY = cy + textRect.height() / 2 - fm.descent();
-
-        painter->drawText(QPoint(textX, textY), currentLabel);
+        painter->drawPolygon(arrow);
     }
 
-    // Заголовок
+    if (showPointerLabel) {
+        QFontMetrics fm = painter->fontMetrics();
+        QRect textRect = fm.boundingRect(pointerLabel);
+
+        int textX = baseX - textRect.width() - pointerLabelOffset;
+        QRect labelRect(textX, pointerY - textRect.height() / 2, textRect.width(), textRect.height());
+        painter->drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, pointerLabel);
+    }
+
     if (!rulerTitle.isEmpty()) {
-        QRect titleRect = fm.boundingRect(rulerTitle);
-        int textX = cx + longTickLength + titleOffset;
-        int textY = cy - visibleDivisions * step / 2 - titleRect.height() - 2;
+        QFontMetrics fm = painter->fontMetrics();
+        //QRect titleRect = fm.boundingRect(rulerTitle);
+
+        int textX = center.x() + longTickLength + titleOffset;
+        int textY = topY - 5;
 
         painter->drawText(QPoint(textX, textY), rulerTitle);
     }
@@ -621,196 +647,132 @@ void drawVerticalSlidingRuler(QPainter* painter,
 
 void drawHorizontalSlidingRuler(QPainter* painter,
                                 const QPoint& center,
-                                int visibleDivisions,
+                                int totalDivisions,
                                 int step,
                                 int shortTickLength,
                                 int longTickLength,
                                 int lineWidth,
                                 const QColor& color,
-                                double currentValue,
-                                double divisionStepValue = 1.0,
-                                const QFont& font = QFont(),
-                                std::function<QString(double)> labelFormatter = nullptr,
-                                bool hollowPointer = false,
-                                int pointerSize = 6,
-                                int pointerOffset = 4,
+                                double value,
+                                double scaleStep,
+                                const QFont& font,
+                                std::function<QString(double)> labelFormatter,
+                                bool hollowPointer,
+                                int pointerSize,
+                                int pointerOffset,
                                 QString rulerTitle = "",
                                 int titleOffset = 4,
-                                bool showCurrentLabel = false,
-                                QString currentLabel = "",
-                                int currentLabelOffset = 6) {
-    if (!painter || visibleDivisions <= 0 || step <= 0 || divisionStepValue <= 0.0)
+                                bool showPointerLabel = false,
+                                QString pointerLabel = "",
+                                int pointerLabelOffset = 4) {
+    if (!painter || totalDivisions <= 0 || step <= 0 || scaleStep <= 0)
         return;
 
     QPen pen(color);
     pen.setWidth(lineWidth);
     painter->setPen(pen);
     painter->setBrush(Qt::NoBrush);
+
     painter->setFont(font);
 
-    QFontMetrics fm = painter->fontMetrics();
+    int rulerWidth = (totalDivisions - 1) * step;
+    int leftX = center.x() - rulerWidth / 2;
 
-    int cx = center.x();
-    int cy = center.y();
+    // Вычисляем смещение на основе значения
+    double offset = std::fmod(value, scaleStep) / scaleStep * step;
+    int startLabel = std::floor(value / scaleStep) - (totalDivisions / 2);
 
-    double halfRange = (visibleDivisions / 2.0) * divisionStepValue;
-    double minValue = currentValue - halfRange;
-    double maxValue = currentValue + halfRange;
+    for (int i = 0; i < totalDivisions; ++i) {
+        int tickLength = (i % 5 == 0) ? longTickLength : shortTickLength;
+        int xPos = leftX + i * step + static_cast<int>(offset);
 
-    double startValue = std::floor(minValue / divisionStepValue) * divisionStepValue;
+        painter->drawLine(xPos, center.y(), xPos, center.y() + tickLength);
 
-    for (double val = startValue; val <= maxValue + divisionStepValue; val += divisionStepValue) {
-        double delta = val - currentValue;
-        int xPos = cx + static_cast<int>(delta / divisionStepValue * step);
-
-        if (std::abs(xPos - cx) > (visibleDivisions * step / 2 + step))
-            continue;
-
-        bool isMajor = std::fmod(std::fabs(val), divisionStepValue * 5.0) < 1e-6;
-        int tickLength = isMajor ? longTickLength : shortTickLength;
-
-        int yStart = cy;
-        int yEnd = cy - tickLength;
-
-        painter->drawLine(xPos, yStart, xPos, yEnd);
-
-        if (isMajor && labelFormatter) {
-            QString label = labelFormatter(val);
+        if (i % 5 == 0) {
+            QString label = labelFormatter((startLabel + i) * scaleStep);
+            QFontMetrics fm = painter->fontMetrics();
             QRect textRect = fm.boundingRect(label);
 
             int textX = xPos - textRect.width() / 2;
-            int textY = yEnd - 4;
+            int textY = center.y() + tickLength + textRect.height();
 
-            painter->drawText(QPoint(textX, textY), label);
+            QRect labelRect(textX, textY - textRect.height(), textRect.width(), textRect.height());
+            painter->drawText(labelRect, Qt::AlignHCenter | Qt::AlignTop, label);
         }
     }
 
-    // Указатель (треугольник вверх)
+    // Указатель в центре
+    int pointerX = center.x();
     int halfWidth = pointerSize / 2;
-    int tipY = cy + pointerOffset;
-    int baseY = tipY + pointerSize;
+
+    int tipY = center.y() - pointerOffset;
+    int baseY = tipY - pointerSize;
 
     QPolygon arrow;
-    arrow << QPoint(cx, tipY)
-          << QPoint(cx - halfWidth, baseY)
-          << QPoint(cx + halfWidth, baseY);
+    arrow << QPoint(pointerX, tipY)
+          << QPoint(pointerX - halfWidth, baseY)
+          << QPoint(pointerX + halfWidth, baseY);
 
-    if (hollowPointer)
+    if (hollowPointer) {
         painter->setBrush(Qt::NoBrush);
-    else
+        painter->drawPolygon(arrow);
+    } else {
         painter->setBrush(color);
-
-    painter->drawPolygon(arrow);
-
-    // Подпись текущего значения
-    if (showCurrentLabel && !currentLabel.isEmpty()) {
-        QRect textRect = fm.boundingRect(currentLabel);
-        int textX = cx - textRect.width() / 2;
-        int textY = baseY + textRect.height() + currentLabelOffset;
-
-        painter->drawText(QPoint(textX, textY), currentLabel);
+        painter->drawPolygon(arrow);
     }
 
-    // Заголовок шкалы сверху
+    if (showPointerLabel) {
+        QFontMetrics fm = painter->fontMetrics();
+        QRect textRect = fm.boundingRect(pointerLabel);
+
+        int textX = pointerX - textRect.width() / 2;
+        int textY = baseY - pointerLabelOffset - textRect.height();
+
+        QRect labelRect(textX, textY, textRect.width(), textRect.height());
+        painter->drawText(labelRect, Qt::AlignHCenter | Qt::AlignTop, pointerLabel);
+    }
+
     if (!rulerTitle.isEmpty()) {
+        QFontMetrics fm = painter->fontMetrics();
         QRect titleRect = fm.boundingRect(rulerTitle);
-        int textX = cx - titleRect.width() / 2;
-        int textY = cy - visibleDivisions * step / 2 - titleRect.height() - titleOffset;
+
+        int textX = leftX - titleRect.width() / 2 + rulerWidth / 2;
+        int textY = center.y() + longTickLength + titleOffset + fm.height();
 
         painter->drawText(QPoint(textX, textY), rulerTitle);
     }
 }
 
-void drawBatteryIcon(QPainter* painter,
-                     const QRect& rect,
-                     double level,                             // 0.0 – 1.0
-                     const QColor& borderColor = Qt::black,
-                     const QColor& fillColor = Qt::green,
-                     int borderWidth = 2,
-                     bool showCap = true,
-                     bool showPercent = true,
-                     const QFont& percentFont = QFont(),
-                     const QColor& textColor = Qt::black) {
-    if (!painter || level < 0.0 || level > 1.0)
-        return;
-
-    painter->save();
-    painter->setRenderHint(QPainter::Antialiasing, true);
-
-    QPen pen(borderColor, borderWidth);
-    painter->setPen(pen);
-    painter->setBrush(Qt::NoBrush);
-
-    QRect bodyRect = rect;
-
-    // Крышка
-    int capWidth = showCap ? rect.width() / 10 : 0;
-    int capHeight = rect.height() / 3;
-
-    if (showCap) {
-        QRect cap(rect.right() + 1, rect.center().y() - capHeight / 2, capWidth, capHeight);
-        painter->setBrush(borderColor);
-        painter->drawRect(cap);
-    }
-
-    // Контур батареи
-    bodyRect.setWidth(bodyRect.width() - capWidth - 2);
-    painter->setBrush(Qt::NoBrush);
-    painter->drawRect(bodyRect);
-
-    // Внутреннее заполнение
-    int margin = borderWidth + 1;
-    QRect fillRect = bodyRect.adjusted(margin, margin, -margin, -margin);
-    int fillWidth = static_cast<int>(fillRect.width() * std::clamp(level, 0.0, 1.0));
-    QRect chargeRect = QRect(fillRect.left(), fillRect.top(), fillWidth, fillRect.height());
-
-    painter->setBrush(fillColor);
-    painter->setPen(Qt::NoPen);
-    painter->drawRect(chargeRect);
-
-    // Текст процента
-    if (showPercent) {
-        painter->setFont(percentFont);
-        painter->setPen(textColor);
-        QString percentText = QString::number(static_cast<int>(level * 100)) + "%";
-
-        painter->drawText(bodyRect, Qt::AlignCenter, percentText);
-    }
-
-    painter->restore();
+void OverlayWidget::paintEvent(QPaintEvent *event) {
+    QPainter painter(this);
+    drawOverlay(&painter, width(), height());
+    QWidget::paintEvent(event);  // Call base if needed
 }
 
-void OverlayWidget::paintEvent(QPaintEvent *event)
-{
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
+void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
+    if (!painter) return;
 
-    QFont labelFont("Consolas", 10);
-    QFont bigLabelFont("Consolas", 14);
-    int screenWidth = width();
+    painter->setRenderHint(QPainter::Antialiasing, true);
 
-    int screenHeight = height();
-    int CameraVerticalAngle = 56;
+    int screenWidth = width;
+    int screenHeight = height;
 
-    QColor defaultColor(Qt::gray);
+    QColor defaultColor(Qt::white);
 
-    int centerX = screenWidth/2;
-    int centerY = screenHeight/2;
-    QPoint center(centerX, centerY);
+    QFont labelFont("Consolas", 8, QFont::Bold);
 
-    //Перекрестие - центр камеры
-    int crosshairSize = 20;
-    int crosshairGap = crosshairSize/3;
-    int crosshairLineWidth = 1;
-    QColor crosshairColor = defaultColor;
+    QPoint center(screenWidth / 2, screenHeight / 2);
 
-    drawCrosshair(&painter, center, crosshairSize, crosshairLineWidth, crosshairGap, crosshairColor);
+    int crosshairSize = 80;
+    int crosshairLineWidth = 2;
+    int crosshairGap = 10;
+    drawCrosshair(painter, center, crosshairSize, crosshairLineWidth, crosshairGap, defaultColor);
 
-    //Квадрат - указатель направления аппарата
-    //Квадрат переключается на стрелку, если камера отклонена так, что направление аппарата вне видимости (помогает с ориентированием)
+    //const int CameraVerticalAngle = 60;
+
     ArrowMode camLook = ArrowMode::None;
-    int pixInDeg = screenHeight / CameraVerticalAngle;
-    int camY = centerY;//+ ocamAngle * pixInDeg;
+    //int pixInDeg = screenHeight / CameraVerticalAngle;
+    int camY = center.y(); //+ ocamAngle * pixInDeg;
     if(camY <= (screenHeight / 5)){
         camY = screenHeight / 5;
         camLook = ArrowMode::BelowLookingUp;
@@ -820,7 +782,7 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
         camLook = ArrowMode::AboveLookingDown;
     }
 
-    QPoint dirRectCenter(centerX,  camY);
+    QPoint dirRectCenter(center.x(),  camY);
     int dirRectSize = crosshairSize * 2 + 20;
     int dirRectRadis = 10;
     int dirRectLineLen = (dirRectSize - crosshairSize * 2) / 2 - 5;
@@ -831,9 +793,9 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     int arrowsOffset = 0;
 
     if(camLook == ArrowMode::None)
-        drawRoundedBoxWithInnerLines(&painter, dirRectCenter, dirRectSize, dirRectRadis, dirRectLineLen, dirRectLineWidth, dirRectColor);
+        drawRoundedBoxWithInnerLines(painter, dirRectCenter, dirRectSize, dirRectRadis, dirRectLineLen, dirRectLineWidth, dirRectColor);
     else
-        drawArrowLines(&painter, dirRectCenter, camLook, arrowsLenghts, arrowsOffset, dirRectLineWidth, dirArrowsColor);
+        drawArrowLines(painter, dirRectCenter, camLook, arrowsLenghts, arrowsOffset, dirRectLineWidth, dirArrowsColor);
 
     //статическая линейка для угла камеры
     int camAngleRulerNumNotches = 11;
@@ -856,7 +818,7 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     QString camAngleRuleTitle = "Угол камеры";
     int camAngleRulerTitleOffset = -20;
 
-    drawVerticalRuler(&painter,
+    drawVerticalRuler(painter,
                       camAngleRulerPos,
                       camAngleRulerNumNotches,        // 30 делений
                       camAngleRulerNotchSpacing,        // расстояние между рисками = 10 пикселей
@@ -869,7 +831,6 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
                       camAngleRulerLabelsOffset,
                       labelFont,
                       [](int i) {   // форматтер
-                          // return QString("%1 m").arg(i * 10.0, 0, 'i', 1);  // Например: 0.0 cm, 2.5 cm ...
                           return QString::number(-(i * 18 - 90));
                       },
                       camAngleRulerDrawPoimter,
@@ -906,11 +867,11 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     double pitchRulerSetpointPos = (double(90.0f - oPitchSetpoint) / 180.0f);
     QString pitchRulerSetpointValue = QString::number(std::round(oPitchSetpoint));
     int pitchRulerSetpointSize = pitchRulerPointerSize/2;
-    int pitchRulerSetpointHollow = false;
+    bool pitchRulerSetpointHollow = false;
     int pitchRulerSetpointOffset = pitchRulerPointerOffset + pitchRulerSetpointSize/2;
     int pitchRulerSetpointHideTreshold = 12;
 
-    drawVerticalRuler(&painter,
+    drawVerticalRuler(painter,
                       pitchRulerPos,
                       pitchRulerNumNotches,
                       pitchRulerNotchSpacing,
@@ -966,40 +927,40 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     double rollRulerSetpointPos = (double(90.0f + oRollSetpoint) / 180.0f);
     QString rollRulerSetpointValue = QString::number(std::round(oRollSetpoint));
     int rollRulerSetpointSize = rollRulerPointerSize/2;
-    int rollRulerSetpointHollow = false;
+    bool rollRulerSetpointHollow = false;
     int rollRulerSetpointOffset = rollRulerPointerOffset + rollRulerSetpointSize/2;
     int rollRulerSetpointHideTreshold = 12;
 
-    drawHorizontalRuler(&painter,
-                      rollRulerPos,
-                      rollRulerNumNotches,
-                      rollRulerNotchSpacing,
-                      rollRulerShortNotch,
-                      rollRulerLongNotch,
-                      rollRullerLineWidth,
-                      rollRulerColor,
-                      rollRulerBot,
-                      rollRulerDrawLabels,
-                      rollRulerLabelsOffset,
-                      labelFont,
-                      [](int i) {
-                          return QString::number((i * 6 - 90));
-                      },
-                      rollRulerDrawPoimter,
-                      rollRulerPointerPos,
-                      rollRulerPointerValue,
-                      rollRulerPointerSize,
-                      rollRulerPointerHollow,
-                      rollRulerPointerOffset,
-                      rollRuleTitle,
-                      rollRulerTitleOffset,
-                      rollRulerDrawSetpoint,
-                      rollRulerSetpointPos,
-                      rollRulerSetpointValue,
-                      rollRulerSetpointSize,
-                      rollRulerSetpointHollow,
-                      rollRulerSetpointOffset,
-                      rollRulerSetpointHideTreshold);
+    drawHorizontalRuler(painter,
+                        rollRulerPos,
+                        rollRulerNumNotches,
+                        rollRulerNotchSpacing,
+                        rollRulerShortNotch,
+                        rollRulerLongNotch,
+                        rollRullerLineWidth,
+                        rollRulerColor,
+                        rollRulerBot,
+                        rollRulerDrawLabels,
+                        rollRulerLabelsOffset,
+                        labelFont,
+                        [](int i) {
+                            return QString::number((i * 6 - 90));
+                        },
+                        rollRulerDrawPoimter,
+                        rollRulerPointerPos,
+                        rollRulerPointerValue,
+                        rollRulerPointerSize,
+                        rollRulerPointerHollow,
+                        rollRulerPointerOffset,
+                        rollRuleTitle,
+                        rollRulerTitleOffset,
+                        rollRulerDrawSetpoint,
+                        rollRulerSetpointPos,
+                        rollRulerSetpointValue,
+                        rollRulerSetpointSize,
+                        rollRulerSetpointHollow,
+                        rollRulerSetpointOffset,
+                        rollRulerSetpointHideTreshold);
 
     //Скользящая линейка глубины
     int depthRulerNumNotches = 21;
@@ -1021,7 +982,7 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     int depthRulerPointerOffset = -pitchRulerPointerOffset;
     int depthRulerPointerLabelOffset = depthRulerPointerOffset + 14;
 
-    drawVerticalSlidingRuler(&painter,
+    drawVerticalSlidingRuler(painter,
                              depthRulerPosition,
                              depthRulerNumNotches,
                              depthRulerNotchSpacing,               // 21 деление, шаг 12 px
@@ -1032,7 +993,7 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
                              depthRulerValue,                  // текущее значение
                              depthRulerStep,
                              labelFont,
-                             [](int v) { return QString::number(v); },
+                             [](double v) { return QString::number(v); },
                              depthRulerPointerHolow,                // hollowPointer
                              depthRulerTitle,
                              depthRulerTitleOffset,
@@ -1062,29 +1023,30 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     int yawRulerPointerOffset = -pitchRulerPointerOffset;
     int yawRulerPointerLabelOffset = yawRulerPointerOffset;
 
-    drawHorizontalSlidingRuler(&painter,
-                             yawRulerPosition,
-                             yawRulerNumNotches,
-                             yawRulerNotchSpacing,
-                             yawRulerNotchShort,
-                             yawRulerNotchLong,
-                             yawRulerLineWidth,
-                             yawRulerColor,
-                             yawRulerValue,
-                             yawRulerStep,
-                             labelFont,
+    drawHorizontalSlidingRuler(painter,
+                               yawRulerPosition,
+                               yawRulerNumNotches,
+                               yawRulerNotchSpacing,
+                               yawRulerNotchShort,
+                               yawRulerNotchLong,
+                               yawRulerLineWidth,
+                               yawRulerColor,
+                               yawRulerValue,
+                               yawRulerStep,
+                               labelFont,
                                [](double angle) {
                                    int wrapped = static_cast<int>(std::round(angle)) % 360;
                                    if (wrapped < 0) wrapped += 360;
                                    return QString::number(wrapped) + "°";
                                },
-                             yawRulerPointerHolow,                             yawRulerPointerSize,
-                             yawRulerPointerOffset,                // hollowPointer
-                             yawRulerTitle,
-                             yawRulerTitleOffset,
-                             yawRulerShowPointerLabel,
-                             yawRulerValueName,
-                             yawRulerPointerLabelOffset);
+                               yawRulerPointerHolow,
+                               yawRulerPointerSize,
+                               yawRulerPointerOffset,                // hollowPointer
+                               yawRulerTitle,
+                               yawRulerTitleOffset,
+                               yawRulerShowPointerLabel,
+                               yawRulerValueName,
+                               yawRulerPointerLabelOffset);
 
     //Заряд батареи
     QRect batteryArea(screenWidth / 30, screenHeight / 12 - 26, 55, 26);
@@ -1097,7 +1059,7 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     int batteryBorderWidth = 2;
     QFont batteryFont("Consolas", 12, QFont::Bold);
     QColor batteryTextColor(Qt::darkGray);
-    drawBatteryIcon(&painter,
+    drawBatteryIcon(painter,
                     batteryArea,
                     batteryValue,
                     defaultColor,
@@ -1112,33 +1074,39 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     QRect revolutionCounterRect(screenWidth / 30, screenHeight/12 + 20, 120, 20);
     QFont revFont("Consolas", 12, QFont::Bold);
     QColor revColor = defaultColor;
-    painter.setFont(revFont);
-    painter.setPen(revColor);
-    painter.drawText(revolutionCounterRect, Qt::AlignLeft, "Обороты: " + QString::number(revolutionCount));
+    painter->setFont(revFont);
+    painter->setPen(revColor);
+    painter->drawText(revolutionCounterRect, Qt::AlignLeft, "Обороты: " + QString::number(revolutionCount));
 
     //Состояние светильников
     QRect lightsRect(screenWidth / 30, screenHeight/12 + 40, 220, 20);
     QFont lightsFont("Consolas", 12, QFont::Bold);
     QColor lightsColor = defaultColor;
-    painter.setFont(lightsFont);
-    painter.setPen(lightsColor);
+    painter->setFont(lightsFont);
+    painter->setPen(lightsColor);
     if(oLightsState)
-        painter.drawText(lightsRect, Qt::AlignLeft, "Освещение: вкл.");
+        painter->drawText(lightsRect, Qt::AlignLeft, "Освещение: вкл.");
     else
-        painter.drawText(lightsRect, Qt::AlignLeft, "Освещение: выкл.");
-    // // Рисуем оверлей на всей доступной области виджета
-    // painter.setBrush(QBrush(QColor(255, 0, 0, 100))); // Будет красить
-    // painter.drawRect(rect()); // Используем rect() для получения текущих размеров виджета
+        painter->drawText(lightsRect, Qt::AlignLeft, "Освещение: выкл.");
+}
 
-    //Пример оверлея: красная линия от угла к углу
-    // painter.setPen(QPen(Qt::red, 2));
-    // painter.drawLine(width()/2, 0, width()/2, height());
-    // painter.drawLine(0, height()/2, width(), height()/2);
-    // // Пример оверлея: текст в центре
-    // painter.setPen(Qt::white);
-    // painter.setFont(QFont("Arial", 12));
-    // painter.drawText(rect(), Qt::AlignCenter, "Overlay Example");
+cv::Mat OverlayWidget::getOverlayAsMat(int width, int height) {
+    // Create QImage with transparent background (ARGB32 for alpha channel)
+    QImage image(width, height, QImage::Format_ARGB32);
+    image.fill(Qt::transparent);
 
+    // Create QPainter for the QImage
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    // Draw the overlay on the QImage
+    drawOverlay(&painter, width, height);
+
+    // Convert QImage to cv::Mat (CV_8UC4 for BGRA)
+    cv::Mat mat(height, width, CV_8UC4, image.bits(), image.bytesPerLine());
+
+    // Return a clone to avoid lifetime issues
+    return mat.clone();
 }
 
 float constrainff(const float value, const float lower_limit, const float upper_limit){
