@@ -29,6 +29,8 @@ MainWindow::MainWindow(QWidget *parent)
     camAngle = 0;
     lightsState = false;
 
+    lastRecordToggleTime = QDateTime();
+
     worker->moveToThread(workerThread);
     workerThread->start();
     connect(workerThread, &QThread::finished, worker, &QObject::deleteLater);
@@ -383,6 +385,13 @@ void setMasterButtonState(QPushButton *button, const bool masterState, const boo
 }
 
 void MainWindow::startRecord() {
+    // Проверка на быстрое нажатие (debounce)
+    QDateTime now = QDateTime::currentDateTime();
+    if (lastRecordToggleTime.isValid() && now < lastRecordToggleTime.addSecs(5)) {
+        qDebug() << "Слишком быстрое нажатие кнопки записи";
+        return;
+    }
+
     // ui->recordStereoCheckBox->setDisabled(!isRecording);
     isRecording = !isRecording;
     // isStereoRecording = ui->recordStereoCheckBox->isChecked();
@@ -400,6 +409,9 @@ void MainWindow::startRecord() {
             emit stopRecordingSignal("RCamera");
         }
     }
+
+    // Обновляем время последнего успешного переключения
+    lastRecordToggleTime = now;
 }
 
 void setRecordButtonState(QPushButton *button, const bool isRecording, const bool isPanelHidden)

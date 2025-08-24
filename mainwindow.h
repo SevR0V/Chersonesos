@@ -112,6 +112,7 @@ private:
     QThread *workerThread;
     GamepadWorker *worker;
     OverlayWidget* m_overlay;
+    QDateTime lastRecordToggleTime;
 };
 
 #endif // MAINWINDOW_H
