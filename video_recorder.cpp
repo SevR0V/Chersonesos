@@ -29,7 +29,7 @@ void VideoRecorder::manageStoredFiles() {
             // Если кэш пустой — полный scan и заполнение
             if (cachedFiles.empty()) {
                 for (const auto& entry : std::filesystem::recursive_directory_iterator(m_sessionDirectory)) {
-                    if (entry.is_regular_file() && entry.path().extension() == ".mp4") {
+                    if (entry.is_regular_file() && entry.path().extension() == ".avi") {
                         cachedFiles.push_back(entry.path());
                     }
                 }
@@ -328,9 +328,10 @@ void VideoRecorder::recordFrame() {
 }
 
 void VideoRecorder::startNewSegment() {
-    fileName = generateFileName("chersonesos", ".mp4");
+    fileName = generateFileName("chersonesos", ".avi");
     std::string filePath = (m_sessionDirectory / fileName).string();
 
+    int fourccCode = cv::VideoWriter::fourcc('X', 'V', 'I', 'D');
     cv::Size videoResolution;
 
     {
@@ -345,18 +346,10 @@ void VideoRecorder::startNewSegment() {
         videoResolution = m_recordInfo->frameQueue.front().size();  // + Берём size из front (без pop)
     }
 
-    // GStreamer pipeline for MP4 output, based on the analog_usb example
-    std::string output_pipeline = "appsrc ! video/x-raw,format=BGR,width=" + std::to_string(videoResolution.width) +
-                                  ",height=" + std::to_string(videoResolution.height) +
-                                  ",framerate=" + std::to_string(m_realFPS) + "/1 ! "
-                                                                              "videoconvert ! x264enc tune=zerolatency ! "
-                                                                              "h264parse ! mp4mux ! filesink location=" + filePath;
-
-    videoWriter.open(output_pipeline, cv::CAP_GSTREAMER, 0, m_realFPS, videoResolution, true);
-
+    videoWriter.open(filePath, fourccCode, m_realFPS, videoResolution);
     if (!videoWriter.isOpened()) {
-        QString errorMsg = QString("Не удалось открыть VideoWriter для файла %1, FPS: %2, Разрешение: %3x%4")
-                               .arg(QString::fromStdString(filePath)).arg(m_realFPS)
+        QString errorMsg = QString("Не удалось открыть VideoWriter для файла %1, Кодек: %2, FPS: %3, Разрешение: %4x%5")
+                               .arg(QString::fromStdString(filePath)).arg(fourccCode).arg(m_realFPS)
                                .arg(videoResolution.width).arg(videoResolution.height);
         qDebug() << errorMsg;
         if (videoWriter.isOpened()) videoWriter.release();
@@ -369,15 +362,9 @@ void VideoRecorder::startNewSegment() {
     emit recordingStarted();
 
     if (m_recordMode == Both) {
-        fileNameOverlay = generateFileName("chersonesos_overlay", ".mp4");
+        fileNameOverlay = generateFileName("chersonesos_overlay", ".avi");
         std::string filePathOverlay = (m_sessionDirectory / fileNameOverlay).string();
-        std::string output_pipeline_overlay = "appsrc ! video/x-raw,format=BGR,width=" + std::to_string(videoResolution.width) +
-                                              ",height=" + std::to_string(videoResolution.height) +
-                                              ",framerate=" + std::to_string(m_realFPS) + "/1 ! "
-                                                                                          "videoconvert ! x264enc tune=zerolatency ! "
-                                                                                          "h264parse ! mp4mux ! filesink location=" + filePathOverlay;
-
-        videoWriterOverlay.open(output_pipeline_overlay, cv::CAP_GSTREAMER, 0, m_realFPS, videoResolution, true);
+        videoWriterOverlay.open(filePathOverlay, fourccCode, m_realFPS, videoResolution);
         if (!videoWriterOverlay.isOpened()) {
             QString errorMsg = QString("Не удалось открыть VideoWriter для оверлея %1").arg(QString::fromStdString(filePathOverlay));
             qDebug() << errorMsg;
