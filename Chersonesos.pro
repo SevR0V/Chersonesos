@@ -59,11 +59,11 @@ qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
-INCLUDEPATH += c:\opencv-4.10.0-build\install\include
+INCLUDEPATH += c:\opencv-4.12.0-build\install\include
 LIBS += -lwsock32
 LIBS += -lws2_32
-LIBS += -LC:\opencv-4.10.0-build\install\x64\vc17\lib
-LIBS += -lopencv_core4100 -lopencv_imgcodecs4100 -lopencv_highgui4100 -lopencv_features2d4100 -lopencv_calib3d4100 -lopencv_videoio4100 -lopencv_imgproc4100 -lopencv_ximgproc4100
+LIBS += -LC:\opencv-4.12.0-build\install\x64\vc17\lib
+LIBS += -lopencv_core4120 -lopencv_imgcodecs4120 -lopencv_highgui4120 -lopencv_features2d4120 -lopencv_calib3d4120 -lopencv_videoio4120 -lopencv_imgproc4120 -lopencv_ximgproc4120
 
 LIBS += -LC:\MVS\Development\Libraries\win64 -lMvCameraControl
 INCLUDEPATH += c:\MVS\Development\Includes

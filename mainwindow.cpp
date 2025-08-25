@@ -214,7 +214,7 @@ void MainWindow::processFrame(CameraFrameInfo* camera)
         m_label->setPixmap(QPixmap::fromImage(img));
         m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
     } else {
-        qDebug() << "Пустой кадр или неверная камера для отображения:" << camera->name;
+        //qDebug() << "Пустой кадр или неверная камера для отображения:" << camera->name;
     }
 }
 

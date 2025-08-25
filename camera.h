@@ -31,6 +31,7 @@ public:
     ~Camera();
 
     const QList<CameraFrameInfo*>& getCameras() const;
+    const QList<OverlayFrameInfo*>& getOverlayInfos() const;
     QStringList getCameraNames() const;
     void setCameraNames(const QStringList& names);
     void setRecordMode(const QString& cameraName, RecordMode mode);

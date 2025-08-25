@@ -1,7 +1,7 @@
 #include "video_recorder.h"
 
 VideoRecorder::VideoRecorder(RecordFrameInfo* recordInfo, OverlayFrameInfo* overlayInfo, QObject* parent)
-    : QObject(parent), m_recordInfo(recordInfo), m_overlayInfo(overlayInfo), m_isRecording(false), m_recordInterval(30), m_storedVideoFilesLimit(10), m_frameCount(0), m_realFPS(20), m_recordMode(WithOverlay) {}
+    : QObject(parent), m_recordInfo(recordInfo), m_overlayInfo(overlayInfo), m_isRecording(false), m_recordInterval(30), m_storedVideoFilesLimit(10), m_frameCount(0), m_realFPS(20), m_recordMode() {}
 
 void VideoRecorder::setRecordInterval(int interval) {
     m_recordInterval = interval > 0 ? interval : 30;
@@ -18,8 +18,6 @@ void VideoRecorder::setRecordMode(RecordMode mode) {
 }
 
 void VideoRecorder::manageStoredFiles() {
-    // Асинхронное сохранение в фоне
-    QThreadPool::globalInstance()->start([=]() {
         if (m_storedVideoFilesLimit == 0) {
             QString errorMsg = QString("Старые записи не удаляются: проверяйте свободное место для камеры %1").arg(m_recordInfo->name);
             qDebug() << errorMsg;
@@ -64,7 +62,6 @@ void VideoRecorder::manageStoredFiles() {
             emit errorOccurred("VideoRecorder", errorMsg);
             cachedFiles.clear();  // Сбрасываем кэш при ошибке
         }
-    });
 }
 
 void VideoRecorder::startRecording() {

@@ -52,10 +52,12 @@ Camera::~Camera() {
         delete m_cameras[i];
         delete m_streamInfos[i];
         delete m_recordInfos[i];
+        delete m_overlayInfos[i];
     }
     m_cameras.clear();
     m_streamInfos.clear();
     m_recordInfos.clear();
+    m_overlayInfos.clear();
     qCDebug(catCamera) << "Объект Camera уничтожен.";
     qCDebug(catCamera) << "Good Luck!";
 }
@@ -588,12 +590,16 @@ void Camera::stereoShot() {
     });
 
     // Сигнал об успехе (без ожидания сохранения)
-    qCDebug(catCamera) << "Стереокадры инициированы для сохранения: " << QString::fromStdString(lFilePath) << ", " << QString::fromStdString(rFilePath);
+    //qCDebug(catCamera) << "Стереокадры инициированы для сохранения: " << QString::fromStdString(lFilePath) << ", " << QString::fromStdString(rFilePath);
     emit stereoShotSaved(QString::fromStdString(lFilePath) + ";" + QString::fromStdString(rFilePath));
 }
 
 const QList<CameraFrameInfo*>& Camera::getCameras() const {
     return m_cameras;
+}
+
+const QList<OverlayFrameInfo*>& Camera::getOverlayInfos() const {
+    return m_overlayInfos;
 }
 
 QStringList Camera::getCameraNames() const {
@@ -628,6 +634,7 @@ int Camera::checkCameras() {
     m_cameras.clear();
     m_streamInfos.clear();
     m_recordInfos.clear();
+    m_overlayInfos.clear();
     for (unsigned int i = 0; i < m_deviceList.nDeviceNum; i++) {
         if (!m_deviceList.pDeviceInfo[i]) continue;
         std::stringstream cameraName;
@@ -640,6 +647,7 @@ int Camera::checkCameras() {
             CameraFrameInfo* frameInfo = new CameraFrameInfo();
             StreamFrameInfo* streamInfo = new StreamFrameInfo();
             RecordFrameInfo* recordInfo = new RecordFrameInfo();
+            OverlayFrameInfo* overlayInfo = new OverlayFrameInfo();
             frameInfo->name = camName;
             frameInfo->id = i;
             streamInfo->name = camName;
@@ -649,6 +657,7 @@ int Camera::checkCameras() {
             m_cameras.append(frameInfo);
             m_streamInfos.append(streamInfo);
             m_recordInfos.append(recordInfo);
+            m_overlayInfos.append(overlayInfo);
             qCDebug(catCamera) << "Добавлена камера" << camName << "с ID" << i;
         } else {
             qCDebug(catCamera) << "Камера" << camName << "пропущена, так как отсутствует в m_cameraNames";

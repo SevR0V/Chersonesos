@@ -55,7 +55,7 @@ void CameraWorker::capture() {
             {
                 cv::Mat bayerMat(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC1, stOutFrame.pBufAddr);
                 cv::Mat rawFrame(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC3);
-                cv::cvtColor(bayerMat, rawFrame, cv::COLOR_BayerRG2BGR);
+                cv::cvtColor(bayerMat, rawFrame, cv::COLOR_BayerRG2RGB);
                 QImage qimg = QImage(rawFrame.data, rawFrame.cols, rawFrame.rows, rawFrame.step, QImage::Format_BGR888).copy();
 
                 {
@@ -68,7 +68,6 @@ void CameraWorker::capture() {
                     m_streamInfo->frameQueue.push_back(rawFrame.clone());  // + Push clone
                     if (m_streamInfo->frameQueue.size() > m_streamInfo->maxQueueSize) {
                         m_streamInfo->frameQueue.pop_front();  // + Drop старый
-                        qDebug() << "Dropped old frame from stream queue for" << m_frameInfo->name;  // + Опциональный лог для отладки
                     }
                 }
 
@@ -77,7 +76,6 @@ void CameraWorker::capture() {
                     m_recordInfo->frameQueue.push_back(rawFrame.clone());  // + Push clone
                     if (m_recordInfo->frameQueue.size() > m_recordInfo->maxQueueSize) {
                         m_recordInfo->frameQueue.pop_front();  // + Drop старый
-                        qDebug() << "Dropped old frame from record queue for" << m_frameInfo->name;  // + Опциональный лог для отладки
                     }
                 }
             }
