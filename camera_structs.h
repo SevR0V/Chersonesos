@@ -75,6 +75,7 @@ struct RecordFrameInfo {
     }
 };
 
+
 // Структура для оверлея
 struct OverlayFrameInfo {
     std::deque<QImage> originalQueue;      // Циклический буфер для оригинальных кадров
@@ -87,6 +88,22 @@ struct OverlayFrameInfo {
     }
 
     ~OverlayFrameInfo() {
+        delete mutex;
+    }
+};
+
+// Структура для записи видео
+struct StereoFrameInfo {
+    QString name;                           // Имя камеры
+    unsigned int id = -1;                   // ID камеры в списке устройств
+    std::shared_ptr<cv::Mat> sharedImg;
+    QMutex* mutex = nullptr;                // Указатель на мьютекс для синхронизации
+
+    StereoFrameInfo() {
+        mutex = new QMutex();
+    }
+
+    ~StereoFrameInfo() {
         delete mutex;
     }
 };

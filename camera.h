@@ -65,6 +65,7 @@ private:
     QList<CameraFrameInfo*> m_cameras;
     QList<StreamFrameInfo*> m_streamInfos;
     QList<RecordFrameInfo*> m_recordInfos;
+    QList<StereoFrameInfo*> m_stereoInfos;
     OverlayFrameInfo* m_overlayInfo = nullptr;
     MV_CC_DEVICE_INFO_LIST m_deviceList;
     QTimer* m_checkCameraTimer;

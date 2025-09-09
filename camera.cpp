@@ -2,7 +2,7 @@
 
 QLoggingCategory catCamera("camera");
 
-Camera::Camera(QStringList& names, OverlayFrameInfo* overlayInfo, QObject* parent) : QObject(parent), m_cameraNames(names), m_reconnectAttempts(0), m_overlayInfo(overlayInfo) {
+Camera::Camera(QStringList& names, OverlayFrameInfo* overlayInfo, QObject* parent) : QObject(parent), m_cameraNames(names), m_overlayInfo(overlayInfo), m_reconnectAttempts(0) {
     qCDebug(catCamera) << "Создание объекта Camera";
     memset(&m_deviceList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
 
@@ -21,41 +21,66 @@ Camera::Camera(QStringList& names, OverlayFrameInfo* overlayInfo, QObject* paren
 
 Camera::~Camera() {
     qCDebug(catCamera) << "Уничтожение объекта Camera...";
-    stopAll();
-    cleanupAllCameras();
 
+    // Остановка таймера
     if (m_checkCameraTimer) {
         m_checkCameraTimer->stop();
         delete m_checkCameraTimer;
         m_checkCameraTimer = nullptr;
     }
 
+    // Остановка всех потоков
+    stopAll(); // Убедитесь, что stopAll() вызывается только здесь, если не вызван ранее
+
     for (int i = 0; i < m_cameras.size(); ++i) {
-        delete m_cameras[i]->worker;
-        delete m_cameras[i]->thread;
-        delete m_streamInfos[i]->streamer;
-        if (m_streamInfos[i]->streamerThread && m_streamInfos[i]->streamerThread->isRunning()) {
-            m_streamInfos[i]->streamerThread->quit();
-            m_streamInfos[i]->streamerThread->wait(5000);
-        }
-        delete m_streamInfos[i]->streamerThread;
-        delete m_recordInfos[i]->recorder;
-        if (m_recordInfos[i]->recorderThread && m_recordInfos[i]->recorderThread->isRunning()) {
-            m_recordInfos[i]->recorderThread->quit();
-            if (!m_recordInfos[i]->recorderThread->wait(5000)) {
-                qCDebug(catCamera) << "Поток записи для" << m_cameras[i]->name << "не завершился, принудительное завершение";
-                //m_recordInfos[i]->recorderThread->terminate();
-                //m_recordInfos[i]->recorderThread->wait();
+        // Убедитесь, что потоки полностью завершены
+        if (m_cameras[i]->thread && m_cameras[i]->thread->isRunning()) {
+            qCDebug(catCamera) << "Ожидание завершения потока захвата для" << m_cameras[i]->name;
+            m_cameras[i]->thread->quit();
+            if (!m_cameras[i]->thread->wait(10000)) { // Увеличьте время ожидания до 10 секунд
+                qCDebug(catCamera) << "Поток захвата для" << m_cameras[i]->name << "не завершился вовремя";
             }
         }
+        qCDebug(catCamera) << "Удаление thread для" << m_cameras[i]->name;
+        delete m_cameras[i]->thread;
+        m_cameras[i]->thread = nullptr;
+
+        if (m_streamInfos[i]->streamerThread && m_streamInfos[i]->streamerThread->isRunning()) {
+            qCDebug(catCamera) << "Ожидание завершения потока стриминга для" << m_cameras[i]->name;
+            m_streamInfos[i]->streamerThread->quit();
+            if (!m_streamInfos[i]->streamerThread->wait(10000)) {
+                qCDebug(catCamera) << "Поток стриминга для" << m_cameras[i]->name << "не завершился вовремя";
+            }
+        }
+        qCDebug(catCamera) << "Удаление streamerThread для" << m_cameras[i]->name;
+        delete m_streamInfos[i]->streamerThread;
+        m_streamInfos[i]->streamerThread = nullptr;
+
+        if (m_recordInfos[i]->recorderThread && m_recordInfos[i]->recorderThread->isRunning()) {
+            qCDebug(catCamera) << "Ожидание завершения потока записи для" << m_cameras[i]->name;
+            m_recordInfos[i]->recorderThread->quit();
+            if (!m_recordInfos[i]->recorderThread->wait(10000)) {
+                qCDebug(catCamera) << "Поток записи для" << m_cameras[i]->name << "не завершился вовремя";
+            }
+        }
+        qCDebug(catCamera) << "Удаление recorderThread для" << m_cameras[i]->name;
         delete m_recordInfos[i]->recorderThread;
+        m_recordInfos[i]->recorderThread = nullptr;
+
+        // Удаление остальных объектов
+        qCDebug(catCamera) << "Удаление m_cameras[" << i << "]";
         delete m_cameras[i];
+        qCDebug(catCamera) << "Удаление m_streamInfos[" << i << "]";
         delete m_streamInfos[i];
+        qCDebug(catCamera) << "Удаление m_recordInfos[" << i << "]";
         delete m_recordInfos[i];
+        qCDebug(catCamera) << "Удаление m_stereoInfos[" << i << "]";
+        delete m_stereoInfos[i];
     }
     m_cameras.clear();
     m_streamInfos.clear();
     m_recordInfos.clear();
+    m_stereoInfos.clear();
     qCDebug(catCamera) << "Объект Camera уничтожен.";
     qCDebug(catCamera) << "Good Luck!";
 }
@@ -100,11 +125,14 @@ void Camera::initializeCameras() {
         CameraFrameInfo* frameInfo = m_cameras[i];
         StreamFrameInfo* streamInfo = m_streamInfos[i];
         RecordFrameInfo* recordInfo = m_recordInfos[i];
+        StereoFrameInfo* stereoInfo = m_stereoInfos[i];
         OverlayFrameInfo* overlayInfo = m_overlayInfo;
+
         qCDebug(catCamera) << "Инициализация камеры" << frameInfo->name << "с ID" << frameInfo->id;
         getHandle(frameInfo->id, &frameInfo->handle, frameInfo->name.toStdString());
         streamInfo->id = frameInfo->id;
         recordInfo->id = frameInfo->id;
+        stereoInfo->id = frameInfo->id;
 
         if (!frameInfo->handle || frameInfo->id < 0 || frameInfo->id >= (int)m_deviceList.nDeviceNum || !m_deviceList.pDeviceInfo[frameInfo->id]) {
             QString errorMsg = QString("Камера %1 не инициализирована").arg(frameInfo->name);
@@ -138,7 +166,7 @@ void Camera::initializeCameras() {
 
         memset(&frameInfo->frame, 0, sizeof(MV_DISPLAY_FRAME_INFO));
 
-        frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo, overlayInfo);
+        frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo, overlayInfo, stereoInfo);
         frameInfo->thread = new QThread(this);
         frameInfo->worker->moveToThread(frameInfo->thread);
         qCDebug(catCamera) << "Создан поток захвата для камеры" << frameInfo->name;
@@ -181,11 +209,13 @@ void Camera::reinitializeCameras() {
         CameraFrameInfo* frameInfo = m_cameras[i];
         StreamFrameInfo* streamInfo = m_streamInfos[i];
         RecordFrameInfo* recordInfo = m_recordInfos[i];
+        StereoFrameInfo* stereoInfo = m_stereoInfos[i];
         OverlayFrameInfo* overlayInfo = m_overlayInfo;
         qCDebug(catCamera) << "Инициализация камеры" << frameInfo->name << "с ID" << frameInfo->id;
         getHandle(frameInfo->id, &frameInfo->handle, frameInfo->name.toStdString());
         streamInfo->id = frameInfo->id;
         recordInfo->id = frameInfo->id;
+        stereoInfo->id = frameInfo->id;
 
         if (!frameInfo->handle || frameInfo->id < 0 || frameInfo->id >= (int)m_deviceList.nDeviceNum || !m_deviceList.pDeviceInfo[frameInfo->id]) {
             QString errorMsg = QString("Камера %1 не инициализирована").arg(frameInfo->name);
@@ -219,7 +249,7 @@ void Camera::reinitializeCameras() {
 
         memset(&frameInfo->frame, 0, sizeof(MV_DISPLAY_FRAME_INFO));
 
-        frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo, overlayInfo);
+        frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo, overlayInfo, stereoInfo);
         frameInfo->thread = new QThread(this);
         frameInfo->worker->moveToThread(frameInfo->thread);
         qCDebug(catCamera) << "Создан поток захвата для камеры" << frameInfo->name;
@@ -289,6 +319,7 @@ void Camera::stopAll() {
         CameraFrameInfo* frameInfo = m_cameras[i];
         StreamFrameInfo* streamInfo = m_streamInfos[i];
         RecordFrameInfo* recordInfo = m_recordInfos[i];
+        //StereoFrameInfo* stereoInfo = m_stereoInfos[i];
 
         // Остановка объектов
         if (frameInfo->worker) {
@@ -467,11 +498,11 @@ void Camera::stopStreaming(const QString& cameraName) {
 
 void Camera::stereoShot() {
     qCDebug(catCamera) << "Вызван stereoShot, формат сохранения: PNG";
-    StreamFrameInfo* lCameraInfo = nullptr;
-    StreamFrameInfo* rCameraInfo = nullptr;
+    StereoFrameInfo* lCameraInfo = nullptr;
+    StereoFrameInfo* rCameraInfo = nullptr;
     for (int i = 0; i < m_cameras.size(); ++i) {
-        if (m_cameras[i]->name == "LCamera") lCameraInfo = m_streamInfos[i];
-        else if (m_cameras[i]->name == "RCamera") rCameraInfo = m_streamInfos[i];
+        if (m_cameras[i]->name == "LCamera") lCameraInfo = m_stereoInfos[i];
+        else if (m_cameras[i]->name == "RCamera") rCameraInfo = m_stereoInfos[i];
     }
     if (!lCameraInfo || !rCameraInfo) {
         QString errorMsg = "Не найдены обе камеры LCamera и RCamera";
@@ -482,13 +513,17 @@ void Camera::stereoShot() {
     }
     cv::Mat lFrame, rFrame;
     {
-        QMutexLocker lLocker(lCameraInfo->mutex);
-        QMutexLocker rLocker(rCameraInfo->mutex);
-        if (!lCameraInfo->frameQueue.empty()) {
-            lFrame = lCameraInfo->frameQueue.front();  // Берём front и clone для модификации (без pop)
+        {
+            QMutexLocker lLocker(lCameraInfo->mutex);
+            if (lCameraInfo->sharedImg) {
+                lFrame = *lCameraInfo->sharedImg;
+            }
         }
-        if (!rCameraInfo->frameQueue.empty()) {
-            rFrame = rCameraInfo->frameQueue.front();
+        {
+            QMutexLocker rLocker(rCameraInfo->mutex);
+            if (rCameraInfo->sharedImg) {
+                rFrame = *rCameraInfo->sharedImg;
+            }
         }
     }
 
@@ -628,27 +663,32 @@ int Camera::checkCameras() {
     m_cameras.clear();
     m_streamInfos.clear();
     m_recordInfos.clear();
+    m_stereoInfos.clear();
     for (unsigned int i = 0; i < m_deviceList.nDeviceNum; i++) {
         if (!m_deviceList.pDeviceInfo[i]) continue;
         std::stringstream cameraName;
         cameraName << m_deviceList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.chUserDefinedName;
         QString camName = QString::fromStdString(cameraName.str());
         qCDebug(catCamera) << "Устройство" << i << "Имя:" << camName
-                 << "Серийный номер:" << m_deviceList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.chSerialNumber;
+                           << "Серийный номер:" << m_deviceList.pDeviceInfo[i]->SpecialInfo.stGigEInfo.chSerialNumber;
 
         if (m_cameraNames.contains(camName)) {
             CameraFrameInfo* frameInfo = new CameraFrameInfo();
             StreamFrameInfo* streamInfo = new StreamFrameInfo();
             RecordFrameInfo* recordInfo = new RecordFrameInfo();
+            StereoFrameInfo* stereoInfo = new StereoFrameInfo();
             frameInfo->name = camName;
             frameInfo->id = i;
             streamInfo->name = camName;
             streamInfo->id = i;
             recordInfo->name = camName;
             recordInfo->id = i;
+            stereoInfo->name = camName;
+            stereoInfo->id = i;
             m_cameras.append(frameInfo);
             m_streamInfos.append(streamInfo);
             m_recordInfos.append(recordInfo);
+            m_stereoInfos.append(stereoInfo);
             qCDebug(catCamera) << "Добавлена камера" << camName << "с ID" << i;
         } else {
             qCDebug(catCamera) << "Камера" << camName << "пропущена, так как отсутствует в m_cameraNames";
@@ -719,16 +759,16 @@ void Camera::getHandle(unsigned int cameraID, void** handle, const std::string& 
     }
 
     qCDebug(catCamera) << "Используется ID камеры:" << cameraID
-             << "Имя:" << cameraName.c_str()
-             << "Серийный номер:" << m_deviceList.pDeviceInfo[cameraID]->SpecialInfo.stGigEInfo.chSerialNumber;
+                       << "Имя:" << cameraName.c_str()
+                       << "Серийный номер:" << m_deviceList.pDeviceInfo[cameraID]->SpecialInfo.stGigEInfo.chSerialNumber;
 
     if (m_deviceList.pDeviceInfo[cameraID]->nTLayerType == MV_GIGE_DEVICE) {
         unsigned int currentIP = m_deviceList.pDeviceInfo[cameraID]->SpecialInfo.stGigEInfo.nCurrentIp;
         unsigned char* ipBytes = reinterpret_cast<unsigned char*>(&currentIP);
         qCDebug(catCamera) << "GigE камера. IP:" << currentIP
-                 << QString(" (%1.%2.%3.%4)").arg(ipBytes[0]).arg(ipBytes[1]).arg(ipBytes[2]).arg(ipBytes[3])
-                 << "Маска подсети:" << m_deviceList.pDeviceInfo[cameraID]->SpecialInfo.stGigEInfo.nCurrentSubNetMask
-                 << "Шлюз:" << m_deviceList.pDeviceInfo[cameraID]->SpecialInfo.stGigEInfo.nDefultGateWay;
+                           << QString(" (%1.%2.%3.%4)").arg(ipBytes[0]).arg(ipBytes[1]).arg(ipBytes[2]).arg(ipBytes[3])
+                           << "Маска подсети:" << m_deviceList.pDeviceInfo[cameraID]->SpecialInfo.stGigEInfo.nCurrentSubNetMask
+                           << "Шлюз:" << m_deviceList.pDeviceInfo[cameraID]->SpecialInfo.stGigEInfo.nDefultGateWay;
         if (m_usedIPs.find(currentIP) != m_usedIPs.end()) {
             QString errorMsg = QString("Обнаружен IP-конфликт! Камера %1 использует IP, уже занятый другой камерой")
                                    .arg(cameraName.c_str());
@@ -777,7 +817,7 @@ void Camera::getHandle(unsigned int cameraID, void** handle, const std::string& 
             return;
         }
         qCDebug(catCamera) << "Не удалось открыть устройство для" << cameraName.c_str() << "Ошибка:" << nRet
-                 << "Повтор" << (i + 1) << "из" << retryCount;
+                           << "Повтор" << (i + 1) << "из" << retryCount;
         if (nRet == MV_E_ACCESS_DENIED) {
             QString errorMsg = QString("Ошибка доступа (MV_E_ACCESSDENIED) для %1. Возможно, камера занята другим приложением")
                                    .arg(cameraName.c_str());

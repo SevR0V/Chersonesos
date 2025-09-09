@@ -1,7 +1,7 @@
 #include "camera_worker.h"
 
-CameraWorker::CameraWorker(CameraFrameInfo* frameInfo, StreamFrameInfo* streamInfo, RecordFrameInfo* recordInfo, OverlayFrameInfo* overlayInfo, QObject* parent)
-    : QObject(parent), m_frameInfo(frameInfo), m_streamInfo(streamInfo), m_recordInfo(recordInfo), m_overlayInfo(overlayInfo), m_isRunning(true) {
+CameraWorker::CameraWorker(CameraFrameInfo* frameInfo, StreamFrameInfo* streamInfo, RecordFrameInfo* recordInfo, OverlayFrameInfo* overlayInfo, StereoFrameInfo* stereoInfo, QObject* parent)
+    : QObject(parent), m_frameInfo(frameInfo), m_streamInfo(streamInfo), m_recordInfo(recordInfo), m_overlayInfo(overlayInfo), m_stereoInfo(stereoInfo), m_isRunning(true) {
     qDebug() << "Создан CameraWorker для камеры" << m_frameInfo->name;
 
     isLeftCamera = m_frameInfo->name.contains("LCamera", Qt::CaseInsensitive);
@@ -63,6 +63,11 @@ void CameraWorker::capture() {
             {
                 QMutexLocker locker(m_frameInfo->mutex);
                 m_frameInfo->sharedImg = std::make_shared<QImage>(qimg);  // Создаём shared_ptr с копией QImage
+            }
+
+            {
+                QMutexLocker locker(m_stereoInfo->mutex);
+                m_stereoInfo->sharedImg = std::make_shared<cv::Mat>(rawFrame.clone());
             }
 
             {
@@ -151,6 +156,7 @@ void CameraWorker::cleanupCamera() {
             emit errorOccurred("CameraWorker", errorMsg);
         }
         m_frameInfo->handle = nullptr;
+
         QThread::msleep(3000);
         qDebug() << "Ресурсы камеры очищены для" << m_frameInfo->name;
     }
