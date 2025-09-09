@@ -115,7 +115,7 @@ void VideoStreamer::streamFrames(QTcpSocket* client) {
             if (!m_streamInfo->frameQueue.empty()) {
                 frame = m_streamInfo->frameQueue.front();  // + Берём front (shallow copy)
                 m_streamInfo->frameQueue.pop_front();      // + Удаляем из queue
-                frame = frame.clone();                     // + Clone для модификации (safety)
+                //frame = frame.clone();                     // + Clone для модификации (safety)
             }
         }
 

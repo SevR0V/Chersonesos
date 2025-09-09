@@ -236,56 +236,38 @@ void VideoRecorder::recordFrame() {
     }
 
     cv::Mat frame;
-    {
+    if (m_recordMode == WithOverlay || m_recordMode == Both) {
+        {
+        QMutexLocker locker(m_overlayInfo->mutex);
+        if (!m_overlayInfo->overlayQueue.empty()) {
+            frame = m_overlayInfo->overlayQueue.front();
+            m_overlayInfo->overlayQueue.pop_front();
+        }
+        }
+    } else {
+        {
         QMutexLocker locker(m_recordInfo->mutex);
         if (!m_recordInfo->frameQueue.empty()) {
-            frame = m_recordInfo->frameQueue.front();  // + Берём front
-            m_recordInfo->frameQueue.pop_front();      // + Удаляем
-            //frame = frame.clone();                     // + Clone для модификации
+            frame = m_recordInfo->frameQueue.front();
+            m_recordInfo->frameQueue.pop_front();
+        }
         }
     }
 
     if (!frame.empty() && videoWriter.isOpened()) {
         try {
-
-
-            cv::Mat overlay;
-            if (m_recordMode == WithOverlay || m_recordMode == Both) {
-                QMutexLocker overlayLocker(m_overlayInfo->mutex);
-                if (!m_overlayInfo->overlayQueue.empty()) {
-                    overlay = m_overlayInfo->overlayQueue.front();
-                    m_overlayInfo->overlayQueue.pop_front();
+            if (m_recordMode == Both) {
+                {
+                QMutexLocker locker(m_recordInfo->mutex);
+                cv::Mat originalFrame;
+                if (!m_recordInfo->frameQueue.empty()) {
+                    originalFrame = m_recordInfo->frameQueue.front();
+                    m_recordInfo->frameQueue.pop_front();
+                    videoWriter.write(originalFrame);
+                }
                 }
             }
-
-            cv::Mat frameToWrite = frame.clone();
-            if (!overlay.empty() && (m_recordMode == WithOverlay || m_recordMode == Both)) {
-                if (overlay.size() == frame.size() && overlay.channels() == 4) {  // BGRA оверлей
-                    cv::Mat overlayBGR;
-                    cv::cvtColor(overlay, overlayBGR, cv::COLOR_BGRA2BGR);
-                    for (int y = 0; y < frameToWrite.rows; ++y) {
-                        for (int x = 0; x < frameToWrite.cols; ++x) {
-                            uchar alpha = overlay.at<cv::Vec4b>(y, x)[3];
-                            if (alpha > 0) {
-                                frameToWrite.at<cv::Vec3b>(y, x) = (frameToWrite.at<cv::Vec3b>(y, x) * (255 - alpha) + overlayBGR.at<cv::Vec3b>(y, x) * alpha) / 255;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Запись (для NoOverlay или WithOverlay - в videoWriter, для Both - оригинал в videoWriter, с оверлеем в videoWriterOverlay
-            if (videoWriter.isOpened()) {
-                if (m_recordMode == Both) {
-                    videoWriter.write(frame);  // Оригинал
-                    if (videoWriterOverlay.isOpened()) {
-                        videoWriterOverlay.write(frameToWrite);  // С оверлеем
-                    }
-                } else {
-                    videoWriter.write(frameToWrite);  // С или без оверлея
-                }
-            }
-
+            videoWriter.write(frame);
             m_frameCount++;
             qDebug() << "Записан кадр #" << m_frameCount << "для файла" << QString::fromStdString(fileName)
                      << ", время:" << m_timer.elapsed() / 1000.0 << "секунд";
@@ -308,10 +290,8 @@ void VideoRecorder::recordFrame() {
                      << ", кадров:" << m_frameCount << ", время:" << m_timer.elapsed() / 1000.0 << "секунд";
             emit recordingFinished();
 
-            // + Обновление кэша: Добавляем новый файл
             std::filesystem::path newFilePath = m_sessionDirectory / fileName;
             cachedFiles.push_back(newFilePath);
-            // Sort кэша (можно оптимизировать, но просто для small size)
             std::sort(cachedFiles.begin(), cachedFiles.end(),
                       [](const std::filesystem::path& a, const std::filesystem::path& b) {
                           return std::filesystem::last_write_time(a) < std::filesystem::last_write_time(b);
@@ -324,7 +304,6 @@ void VideoRecorder::recordFrame() {
         m_timer.start();
         qDebug() << "Новый сегмент начат для камеры" << m_recordInfo->name;
     }
-
 }
 
 void VideoRecorder::startNewSegment() {

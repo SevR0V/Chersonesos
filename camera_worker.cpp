@@ -1,8 +1,11 @@
 #include "camera_worker.h"
 
-CameraWorker::CameraWorker(CameraFrameInfo* frameInfo, StreamFrameInfo* streamInfo, RecordFrameInfo* recordInfo, QObject* parent)
-    : QObject(parent), m_frameInfo(frameInfo), m_streamInfo(streamInfo), m_recordInfo(recordInfo), m_isRunning(true) {
+CameraWorker::CameraWorker(CameraFrameInfo* frameInfo, StreamFrameInfo* streamInfo, RecordFrameInfo* recordInfo, OverlayFrameInfo* overlayInfo, QObject* parent)
+    : QObject(parent), m_frameInfo(frameInfo), m_streamInfo(streamInfo), m_recordInfo(recordInfo), m_overlayInfo(overlayInfo), m_isRunning(true) {
     qDebug() << "Создан CameraWorker для камеры" << m_frameInfo->name;
+
+    isLeftCamera = m_frameInfo->name.contains("LCamera", Qt::CaseInsensitive);
+    //qDebug() << "isLeftCamera для" << m_frameInfo->name << ":" << isLeftCamera;
 }
 
 CameraWorker::~CameraWorker() {
@@ -49,52 +52,52 @@ void CameraWorker::capture() {
     int retryCount = 5;
     while (m_isRunning) {
         if (!m_isRunning) break;
-
         nRet = MV_CC_GetImageBuffer(m_frameInfo->handle, &stOutFrame, 500);
         if (nRet == MV_OK && stOutFrame.pBufAddr) {
+
+            cv::Mat bayerMat(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC1, stOutFrame.pBufAddr);
+            cv::Mat rawFrame(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC3);
+            cv::cvtColor(bayerMat, rawFrame, cv::COLOR_BayerRG2RGB);
+            QImage qimg = QImage(rawFrame.data, rawFrame.cols, rawFrame.rows, rawFrame.step, QImage::Format_BGR888).copy();
+
             {
-                cv::Mat bayerMat(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC1, stOutFrame.pBufAddr);
-                cv::Mat rawFrame(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC3);
-                cv::cvtColor(bayerMat, rawFrame, cv::COLOR_BayerRG2RGB);
-                QImage qimg = QImage(rawFrame.data, rawFrame.cols, rawFrame.rows, rawFrame.step, QImage::Format_BGR888).copy();
+                QMutexLocker locker(m_frameInfo->mutex);
+                m_frameInfo->sharedImg = std::make_shared<QImage>(qimg);  // Создаём shared_ptr с копией QImage
+            }
 
-                {
-                    QMutexLocker locker(m_frameInfo->mutex);
-                    m_frameInfo->sharedImg = std::make_shared<QImage>(qimg);  // Создаём shared_ptr с копией QImage
-                }
-
-                {
-                    QMutexLocker locker(m_streamInfo->mutex);
-                    m_streamInfo->frameQueue.push_back(rawFrame.clone());  // + Push clone
-                    if (m_streamInfo->frameQueue.size() > m_streamInfo->maxQueueSize) {
-                        m_streamInfo->frameQueue.pop_front();  // + Drop старый
-                    }
-                }
-
-                {
-                    QMutexLocker locker(m_recordInfo->mutex);
-                    m_recordInfo->frameQueue.push_back(rawFrame.clone());  // + Push clone
-                    if (m_recordInfo->frameQueue.size() > m_recordInfo->maxQueueSize) {
-                        m_recordInfo->frameQueue.pop_front();  // + Drop старый
+            {
+                if (isLeftCamera) {
+                    QMutexLocker locker(m_overlayInfo->mutex);
+                    m_overlayInfo->originalQueue.push_back(qimg.copy());  // + Push clone
+                    if (m_overlayInfo->originalQueue.size() > m_overlayInfo->maxQueueSize) {
+                        m_overlayInfo->originalQueue.pop_front();  // + Drop старый
                     }
                 }
             }
 
-            if (stOutFrame.pBufAddr && stOutFrame.stFrameInfo.nWidth > 0 && stOutFrame.stFrameInfo.nHeight > 0) {
-                emit frameReady();
-            } else {
-                QString errorMsg = QString("Получены некорректные данные кадра для камеры %1: pData=%2, ширина=%3, высота=%4")
-                                       .arg(m_frameInfo->name)
-                                       .arg((quintptr)stOutFrame.pBufAddr, 0, 16)
-                                       .arg(stOutFrame.stFrameInfo.nWidth)
-                                       .arg(stOutFrame.stFrameInfo.nHeight);
-                qDebug() << errorMsg;
-                emit errorOccurred("CameraWorker", errorMsg);
+            {
+                QMutexLocker locker(m_streamInfo->mutex);
+                m_streamInfo->frameQueue.push_back(rawFrame.clone());  // + Push clone
+                if (m_streamInfo->frameQueue.size() > m_streamInfo->maxQueueSize) {
+                    m_streamInfo->frameQueue.pop_front();  // + Drop старый
+                }
             }
+
+            {
+                QMutexLocker locker(m_recordInfo->mutex);
+                //std::shared_ptr<cv::Mat> sharedFrame = std::make_shared<cv::Mat>(rawFrame); вместо clone();
+                m_recordInfo->frameQueue.push_back(rawFrame.clone());  // + Push clone
+                if (m_recordInfo->frameQueue.size() > m_recordInfo->maxQueueSize) {
+                    m_recordInfo->frameQueue.pop_front();  // + Drop старый
+                }
+            }
+
+            emit frameReady();
 
             MV_CC_FreeImageBuffer(m_frameInfo->handle, &stOutFrame);
             retryCount = 5;
-        } else {
+        }
+        else {
             if (nRet == -2147483641) {
                 retryCount--;
                 if (retryCount > 0) {

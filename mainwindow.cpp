@@ -40,10 +40,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->enableStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
 
+    m_overlayFrameInfo = new OverlayFrameInfo();
     // Создание и настройка потока Camera
     QThread* cameraThread = new QThread(this);
     QStringList names = {"LCamera", "RCamera"};
-    m_camera = new Camera(names);
+    m_camera = new Camera(names, m_overlayFrameInfo);
     m_camera->moveToThread(cameraThread);
 
     // Подключение сигналов MainWindow к слотам Camera
@@ -54,6 +55,12 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this, &MainWindow::startStreamingSignal, m_camera, &Camera::startStreamingSlot, Qt::QueuedConnection);
     connect(this, &MainWindow::stopStreamingSignal, m_camera, &Camera::stopStreamingSlot, Qt::QueuedConnection);
     connect(this, &MainWindow::stereoShotSignal, m_camera, &Camera::stereoShotSlot, Qt::QueuedConnection);
+
+    connect(m_camera, &Camera::frameReady, this, [this](CameraFrameInfo* camera) {
+        if (camera->name == "LCamera") {
+            m_overlay->pushOverlayToQueueSlot();
+        }
+    }, Qt::QueuedConnection);
 
     // Подключение сигналов Camera к слотам MainWindow
     connect(m_camera, &Camera::greatSuccess, this, &MainWindow::handleCameraSuccess);
@@ -77,8 +84,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_label->setAlignment(Qt::AlignCenter);
     m_cameraLayout->addWidget(m_label);
 
-    // Создание и настройка оверлея
-    m_overlay = new OverlayWidget(m_label);
+    m_overlay = new OverlayWidget(m_label, m_overlayFrameInfo);
     m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
     m_overlay->show();
 
@@ -180,6 +186,7 @@ MainWindow::~MainWindow() {
             cameraThread->wait(5000);
         }
         delete m_camera;
+        delete m_overlayFrameInfo;
         m_camera = nullptr;
     }
 
@@ -398,10 +405,12 @@ void MainWindow::startRecord() {
 
     setRecordButtonState(ui->startRecordButton, isRecording, isPanelHidden);
 
+    isStereoRecording = false;
+
     if (isRecording) {
-        emit startRecordingSignal("LCamera", 120, 0, NoOverlay);  // Добавлен RecordMode
+        emit startRecordingSignal("LCamera", 120, 0, WithOverlay);
         if (isStereoRecording) {
-            emit startRecordingSignal("RCamera", 120, 0, NoOverlay);  // Добавлен RecordMode
+            emit startRecordingSignal("RCamera", 120, 0, NoOverlay);
         }
     } else {
         emit stopRecordingSignal("LCamera");

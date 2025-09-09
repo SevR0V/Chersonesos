@@ -113,6 +113,7 @@ private:
     GamepadWorker *worker;
     OverlayWidget* m_overlay;
     QDateTime lastRecordToggleTime;
+    OverlayFrameInfo* m_overlayFrameInfo = nullptr;
 };
 
 #endif // MAINWINDOW_H

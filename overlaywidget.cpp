@@ -1,10 +1,12 @@
 // overlaywidget.cpp
 #include "overlaywidget.h"
+#include "qthread.h"
 #include <QScreen>
 #include <QWindow>
 #include <cmath>  // For std::hypot, std::round, etc.
 
-OverlayWidget::OverlayWidget(QWidget *parent) : QWidget(parent)
+OverlayWidget::OverlayWidget(QWidget *parent, OverlayFrameInfo* overlayInfo)
+    : QWidget(parent), m_overlayInfo(overlayInfo)
 {
     setAttribute(Qt::WA_TransparentForMouseEvents); // Прозрачный для событий мыши
     setStyleSheet("background-color: transparent;"); // Полностью прозрачный фон
@@ -38,7 +40,14 @@ OverlayWidget::OverlayWidget(QWidget *parent) : QWidget(parent)
     frameTimer = new QTimer(this);
     connect(frameTimer, &QTimer::timeout, this, &OverlayWidget::updateOverlay);
     frameTimer->start(1000/refreshRate);
+
+    //pushTimer = new QTimer(this);
+    //connect(pushTimer, &QTimer::timeout, this, &OverlayWidget::pushOverlayToQueueSlot);
+    //pushTimer->start(50);
+
+    cacheValid = false;
 }
+
 
 void drawCrosshair(QPainter* painter, const QPoint& center, int size, int lineWidth, int gap, const QColor& color) {
     if (!painter || size <= 0 || lineWidth <= 0)
@@ -743,13 +752,8 @@ void drawHorizontalSlidingRuler(QPainter* painter,
     }
 }
 
-void OverlayWidget::paintEvent(QPaintEvent *event) {
-    QPainter painter(this);
-    drawOverlay(&painter, width(), height());
-    QWidget::paintEvent(event);  // Call base if needed
-}
-
-void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
+// Новая функция: drawStatic (рисует только статические части)
+void OverlayWidget::drawStatic(QPainter* painter, int width, int height) {
     if (!painter) return;
 
     painter->setRenderHint(QPainter::Antialiasing, true);
@@ -763,11 +767,144 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
 
     QPoint center(screenWidth / 2, screenHeight / 2);
 
+    // Статический крест
     int crosshairSize = 80;
     int crosshairLineWidth = 2;
     int crosshairGap = 10;
     drawCrosshair(painter, center, crosshairSize, crosshairLineWidth, crosshairGap, defaultColor);
 
+    // Статическая линейка для угла камеры (без указателя и уставки)
+    int camAngleRulerNumNotches = 11;
+    int camAngleRulerHeight = 150;
+    int camAngleRulerNotchSpacing = camAngleRulerHeight / (camAngleRulerNumNotches - 1);
+    QPoint camAngleRulerPos(80, screenHeight - camAngleRulerHeight - camAngleRulerHeight / 3);
+    int camAngleRulerShortNotch = 4;
+    int camAngleRulerLongNotch = 9;
+    int camAngleRullerLineWidth = 2;
+    QColor camAngleRulerColor = defaultColor;
+    bool camAngleRulerLeft = true;
+    bool camAngleRulerDrawLabels = true;
+    int camAngleRulerLabelsOffset = 4;
+    QString camAngleRuleTitle = "Угол камеры";
+    int camAngleRulerTitleOffset = -20;
+
+    drawVerticalRuler(painter,
+                      camAngleRulerPos,
+                      camAngleRulerNumNotches,
+                      camAngleRulerNotchSpacing,
+                      camAngleRulerShortNotch,
+                      camAngleRulerLongNotch,
+                      camAngleRullerLineWidth,
+                      camAngleRulerColor,
+                      camAngleRulerLeft,
+                      camAngleRulerDrawLabels,
+                      camAngleRulerLabelsOffset,
+                      labelFont,
+                      [](int i) { return QString::number(-(i * 18 - 90)); },
+                      false,  // Без указателя
+                      0.0,
+                      "",
+                      8,
+                      true,
+                      -5,
+                      camAngleRuleTitle,
+                      camAngleRulerTitleOffset,
+                      false);  // Без уставки
+
+    // Статическая вертикальная линейка дифферента (без указателя и уставки)
+    int pitchRulerNumNotches = 31;
+    int pitchRulerHeight = screenHeight / 8 * 3;
+    int pitchRulerNotchSpacing = pitchRulerHeight / (pitchRulerNumNotches - 1);
+    int pitchRillerY = screenHeight / 2 - pitchRulerNotchSpacing * (pitchRulerNumNotches - 1) / 2;
+    QPoint pitchRulerPos(screenWidth / 3, pitchRillerY);
+    int pitchRulerShortNotch = 5;
+    int pitchRulerLongNotch = 12;
+    int pitchRullerLineWidth = 2;
+    QColor pitchRulerColor = defaultColor;
+    bool pitchRulerLeft = true;
+    bool pitchRulerDrawLabels = true;
+    int pitchRulerLabelsOffset = 4;
+    QString pitchRuleTitle = "Дифферент";
+    int pitchRulerTitleOffset = -20;
+
+    drawVerticalRuler(painter,
+                      pitchRulerPos,
+                      pitchRulerNumNotches,
+                      pitchRulerNotchSpacing,
+                      pitchRulerShortNotch,
+                      pitchRulerLongNotch,
+                      pitchRullerLineWidth,
+                      pitchRulerColor,
+                      pitchRulerLeft,
+                      pitchRulerDrawLabels,
+                      pitchRulerLabelsOffset,
+                      labelFont,
+                      [](int i) { return QString::number(-(i * 6 - 90)); },
+                      false,  // Без указателя
+                      0.0,
+                      "",
+                      8,
+                      true,
+                      -5,
+                      pitchRuleTitle,
+                      pitchRulerTitleOffset,
+                      false);  // Без уставки
+
+    // Статическая горизонтальная линейка крена (без указателя и уставки)
+    int rollRulerNumNotches = 31;
+    int rollRulerWidth = pitchRulerHeight;
+    int rollRulerNotchSpacing = rollRulerWidth / (rollRulerNumNotches - 1);
+    QPoint rollRulerPos(screenWidth / 2 - rollRulerNotchSpacing * (rollRulerNumNotches - 1) / 2, pitchRillerY + pitchRulerHeight + pitchRulerHeight/4);
+    int rollRulerShortNotch = 5;
+    int rollRulerLongNotch = 12;
+    int rollRullerLineWidth = 2;
+    QColor rollRulerColor = defaultColor;
+    bool rollRulerBot = false;
+    bool rollRulerDrawLabels = true;
+    int rollRulerLabelsOffset = 4;
+    QString rollRuleTitle = "Крен";
+    int rollRulerTitleOffset = 20;
+
+    drawHorizontalRuler(painter,
+                        rollRulerPos,
+                        rollRulerNumNotches,
+                        rollRulerNotchSpacing,
+                        rollRulerShortNotch,
+                        rollRulerLongNotch,
+                        rollRullerLineWidth,
+                        rollRulerColor,
+                        rollRulerBot,
+                        rollRulerDrawLabels,
+                        rollRulerLabelsOffset,
+                        labelFont,
+                        [](int i) { return QString::number((i * 6 - 90)); },
+                        false,  // Без указателя
+                        0.0,
+                        "",
+                        8,
+                        true,
+                        -5,
+                        rollRuleTitle,
+                        rollRulerTitleOffset,
+                        false);  // Без уставки
+}
+
+// Новая функция: drawDynamic (рисует только изменяющиеся части)
+void OverlayWidget::drawDynamic(QPainter* painter, int width, int height) {
+    if (!painter) return;
+
+    painter->setRenderHint(QPainter::Antialiasing, true);
+
+    int screenWidth = width;
+    int screenHeight = height;
+
+    QColor defaultColor(Qt::white);
+
+    QFont labelFont("Consolas", 8, QFont::Bold);
+
+    QPoint center(screenWidth / 2, screenHeight / 2);
+
+    // Динамическая часть dirRect и arrows (зависит от ocamAngle)
     //const int CameraVerticalAngle = 60;
 
     ArrowMode camLook = ArrowMode::None;
@@ -783,9 +920,9 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
     }
 
     QPoint dirRectCenter(center.x(),  camY);
-    int dirRectSize = crosshairSize * 2 + 20;
+    int dirRectSize = 80 * 2 + 20;  // crosshairSize=80 из static
     int dirRectRadis = 10;
-    int dirRectLineLen = (dirRectSize - crosshairSize * 2) / 2 - 5;
+    int dirRectLineLen = (dirRectSize - 80 * 2) / 2 - 5;
     int dirRectLineWidth = 1;
     QColor dirRectColor = defaultColor;
     QColor dirArrowsColor = defaultColor;
@@ -797,7 +934,7 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
     else
         drawArrowLines(painter, dirRectCenter, camLook, arrowsLenghts, arrowsOffset, dirRectLineWidth, dirArrowsColor);
 
-    //статическая линейка для угла камеры
+    // Динамическая часть линейки угла камеры (только указатель)
     int camAngleRulerNumNotches = 11;
     int camAngleRulerHeight = 150;
     int camAngleRulerNotchSpacing = camAngleRulerHeight / (camAngleRulerNumNotches - 1);
@@ -807,7 +944,6 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
     int camAngleRullerLineWidth = 2;
     QColor camAngleRulerColor = defaultColor;
     bool camAngleRulerLeft = true;
-    bool camAngleRulerDrawLabels = true;
     int camAngleRulerLabelsOffset = 4;
     bool camAngleRulerDrawPoimter = true;
     int camAngleRulerPointerSize = 8;
@@ -815,34 +951,31 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
     int camAngleRulerPointerOffset = -5;
     double camAngleRulerPointerPos = (double(90.0f - ocamAngle) / 180.0f);
     QString camAngleRulerPointerValue = QString::number(std::round(ocamAngle));
-    QString camAngleRuleTitle = "Угол камеры";
-    int camAngleRulerTitleOffset = -20;
 
     drawVerticalRuler(painter,
                       camAngleRulerPos,
-                      camAngleRulerNumNotches,        // 30 делений
-                      camAngleRulerNotchSpacing,        // расстояние между рисками = 10 пикселей
-                      camAngleRulerShortNotch,         // обычная риска
-                      camAngleRulerLongNotch,        // длинная риска
-                      camAngleRullerLineWidth,         // толщина линии
+                      camAngleRulerNumNotches,
+                      camAngleRulerNotchSpacing,
+                      camAngleRulerShortNotch,
+                      camAngleRulerLongNotch,
+                      camAngleRullerLineWidth,
                       camAngleRulerColor,
                       camAngleRulerLeft,
-                      camAngleRulerDrawLabels,
+                      false,  // Без labels (уже в static)
                       camAngleRulerLabelsOffset,
                       labelFont,
-                      [](int i) {   // форматтер
-                          return QString::number(-(i * 18 - 90));
-                      },
+                      [](int i) { return QString::number(-(i * 18 - 90)); },
                       camAngleRulerDrawPoimter,
                       camAngleRulerPointerPos,
                       camAngleRulerPointerValue,
                       camAngleRulerPointerSize,
                       camAngleRulerPointerHollow,
                       camAngleRulerPointerOffset,
-                      camAngleRuleTitle,
-                      camAngleRulerTitleOffset);
+                      "",  // Без title (в static)
+                      0,
+                      false);  // Без setpoint
 
-    //Вертикальная линейка дифферента
+    // Динамическая часть линейки дифферента (указатель и setpoint)
     int pitchRulerNumNotches = 31;
     int pitchRulerHeight = screenHeight / 8 * 3;
     int pitchRulerNotchSpacing = pitchRulerHeight / (pitchRulerNumNotches - 1);
@@ -853,7 +986,6 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
     int pitchRullerLineWidth = 2;
     QColor pitchRulerColor = defaultColor;
     bool pitchRulerLeft = true;
-    bool pitchRulerDrawLabels = true;
     int pitchRulerLabelsOffset = 4;
     bool pitchRulerDrawPoimter = true;
     int pitchRulerPointerSize = 8;
@@ -861,8 +993,6 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
     int pitchRulerPointerOffset = -5;
     double pitchRulerPointerPos = (double(90.0f - oPitch) / 180.0f);
     QString pitchRulerPointerValue = QString::number(std::round(oPitch));
-    QString pitchRuleTitle = "Дифферент";
-    int pitchRulerTitleOffset = -20;
     bool pitchRulerDrawSetpoint = ostabPitch;
     double pitchRulerSetpointPos = (double(90.0f - oPitchSetpoint) / 180.0f);
     QString pitchRulerSetpointValue = QString::number(std::round(oPitchSetpoint));
@@ -880,20 +1010,18 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
                       pitchRullerLineWidth,
                       pitchRulerColor,
                       pitchRulerLeft,
-                      pitchRulerDrawLabels,
+                      false,  // Без labels
                       pitchRulerLabelsOffset,
                       labelFont,
-                      [](int i) {
-                          return QString::number(-(i * 6 - 90));
-                      },
+                      [](int i) { return QString::number(-(i * 6 - 90)); },
                       pitchRulerDrawPoimter,
                       pitchRulerPointerPos,
                       pitchRulerPointerValue,
                       pitchRulerPointerSize,
                       pitchRulerPointerHollow,
                       pitchRulerPointerOffset,
-                      pitchRuleTitle,
-                      pitchRulerTitleOffset,
+                      "",  // Без title
+                      0,
                       pitchRulerDrawSetpoint,
                       pitchRulerSetpointPos,
                       pitchRulerSetpointValue,
@@ -902,8 +1030,7 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
                       pitchRulerSetpointOffset,
                       pitchRulerSetpointHideTreshold);
 
-
-    //Горизонтальная линейка крена
+    // Динамическая часть линейки крена (указатель и setpoint)
     int rollRulerNumNotches = 31;
     int rollRulerWidth = pitchRulerHeight;
     int rollRulerNotchSpacing = rollRulerWidth / (rollRulerNumNotches - 1);
@@ -913,7 +1040,6 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
     int rollRullerLineWidth = 2;
     QColor rollRulerColor = defaultColor;
     bool rollRulerBot = false;
-    bool rollRulerDrawLabels = true;
     int rollRulerLabelsOffset = 4;
     bool rollRulerDrawPoimter = true;
     int rollRulerPointerSize = 8;
@@ -921,8 +1047,6 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
     int rollRulerPointerOffset = -5;
     double rollRulerPointerPos = (double(90.0f + oRoll) / 180.0f);
     QString rollRulerPointerValue = QString::number(std::round(oRoll));
-    QString rollRuleTitle = "Крен";
-    int rollRulerTitleOffset = 20;
     bool rollRulerDrawSetpoint = ostabRoll;
     double rollRulerSetpointPos = (double(90.0f + oRollSetpoint) / 180.0f);
     QString rollRulerSetpointValue = QString::number(std::round(oRollSetpoint));
@@ -940,20 +1064,18 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
                         rollRullerLineWidth,
                         rollRulerColor,
                         rollRulerBot,
-                        rollRulerDrawLabels,
+                        false,  // Без labels
                         rollRulerLabelsOffset,
                         labelFont,
-                        [](int i) {
-                            return QString::number((i * 6 - 90));
-                        },
+                        [](int i) { return QString::number((i * 6 - 90)); },
                         rollRulerDrawPoimter,
                         rollRulerPointerPos,
                         rollRulerPointerValue,
                         rollRulerPointerSize,
                         rollRulerPointerHollow,
                         rollRulerPointerOffset,
-                        rollRuleTitle,
-                        rollRulerTitleOffset,
+                        "",  // Без title
+                        0,
                         rollRulerDrawSetpoint,
                         rollRulerSetpointPos,
                         rollRulerSetpointValue,
@@ -962,7 +1084,7 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
                         rollRulerSetpointOffset,
                         rollRulerSetpointHideTreshold);
 
-    //Скользящая линейка глубины
+    // Скользящая линейка глубины (полностью динамическая)
     int depthRulerNumNotches = 21;
     int depthRulerHeight = pitchRulerHeight;
     int depthRulerNotchSpacing = depthRulerHeight / (depthRulerNumNotches-1);
@@ -975,26 +1097,26 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
     int depthRulerStep = 1;
     bool depthRulerPointerHolow = !ostabDepth;
     QString depthRulerTitle = "Глубина";
-    int depthRulerTitleOffset = pitchRulerTitleOffset;
+    int depthRulerTitleOffset = -20;  // pitchRulerTitleOffset из оригинала
     bool depthRulerShowPointerLabel = true;
     QString depthRulerValueName = QString::number(depthRulerValue);
-    int depthRulerPointerSize = pitchRulerPointerSize;
-    int depthRulerPointerOffset = -pitchRulerPointerOffset;
+    int depthRulerPointerSize = 8;  // pitchRulerPointerSize
+    int depthRulerPointerOffset = 5;  // -pitchRulerPointerOffset из оригинала (было -(-5)=5?)
     int depthRulerPointerLabelOffset = depthRulerPointerOffset + 14;
 
     drawVerticalSlidingRuler(painter,
                              depthRulerPosition,
                              depthRulerNumNotches,
-                             depthRulerNotchSpacing,               // 21 деление, шаг 12 px
+                             depthRulerNotchSpacing,
                              depthRulerNotchShort,
-                             depthRulerNotchLong,                // короткая/длинная риска
+                             depthRulerNotchLong,
                              depthRulerLineWidth,
                              depthRulerColor,
-                             depthRulerValue,                  // текущее значение
+                             depthRulerValue,
                              depthRulerStep,
                              labelFont,
                              [](double v) { return QString::number(v); },
-                             depthRulerPointerHolow,                // hollowPointer
+                             depthRulerPointerHolow,
                              depthRulerTitle,
                              depthRulerTitleOffset,
                              depthRulerShowPointerLabel,
@@ -1003,7 +1125,7 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
                              depthRulerPointerSize,
                              depthRulerPointerOffset);
 
-    //Скользящая горизонтальная линейка для курса
+    // Скользящая горизонтальная линейка для курса (полностью динамическая)
     int yawRulerNumNotches = 61;
     int yawRulerWidth = screenWidth/8*6;
     int yawRulerNotchSpacing = yawRulerWidth / (yawRulerNumNotches-1);
@@ -1016,11 +1138,11 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
     int yawRulerStep = 1;
     bool yawRulerPointerHolow = !ostabYaw;
     QString yawRulerTitle = "Курс";
-    int yawRulerTitleOffset = pitchRulerTitleOffset;
+    int yawRulerTitleOffset = -20;  // pitchRulerTitleOffset
     bool yawRulerShowPointerLabel = true;
     QString yawRulerValueName = QString::number(std::round(yawRulerValue));
-    int yawRulerPointerSize = pitchRulerPointerSize;
-    int yawRulerPointerOffset = -pitchRulerPointerOffset;
+    int yawRulerPointerSize = 8;
+    int yawRulerPointerOffset = 5;
     int yawRulerPointerLabelOffset = yawRulerPointerOffset;
 
     drawHorizontalSlidingRuler(painter,
@@ -1041,14 +1163,14 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
                                },
                                yawRulerPointerHolow,
                                yawRulerPointerSize,
-                               yawRulerPointerOffset,                // hollowPointer
+                               yawRulerPointerOffset,
                                yawRulerTitle,
                                yawRulerTitleOffset,
                                yawRulerShowPointerLabel,
                                yawRulerValueName,
                                yawRulerPointerLabelOffset);
 
-    //Заряд батареи
+    // Заряд батареи (динамическая)
     QRect batteryArea(screenWidth / 30, screenHeight / 12 - 26, 55, 26);
     float batteryValue = oBatLevel;
     QColor batteryColor(Qt::green);
@@ -1070,7 +1192,7 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
                     batteryFont,
                     batteryTextColor);
 
-    //Счетчик оборотов аппарата
+    // Счетчик оборотов (динамический)
     QRect revolutionCounterRect(screenWidth / 30, screenHeight/12 + 20, 120, 20);
     QFont revFont("Consolas", 12, QFont::Bold);
     QColor revColor = defaultColor;
@@ -1078,7 +1200,7 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
     painter->setPen(revColor);
     painter->drawText(revolutionCounterRect, Qt::AlignLeft, "Обороты: " + QString::number(revolutionCount));
 
-    //Состояние светильников
+    // Состояние светильников (динамическое)
     QRect lightsRect(screenWidth / 30, screenHeight/12 + 40, 220, 20);
     QFont lightsFont("Consolas", 12, QFont::Bold);
     QColor lightsColor = defaultColor;
@@ -1090,23 +1212,59 @@ void OverlayWidget::drawOverlay(QPainter* painter, int width, int height) {
         painter->drawText(lightsRect, Qt::AlignLeft, "Освещение: выкл.");
 }
 
-cv::Mat OverlayWidget::getOverlayAsMat(int width, int height) {
-    // Create QImage with transparent background (ARGB32 for alpha channel)
-    QImage image(width, height, QImage::Format_ARGB32);
-    image.fill(Qt::transparent);
+// Модифицированный paintEvent: использует кэш + dynamic
+void OverlayWidget::paintEvent(QPaintEvent *event) {
+    QPainter painter(this);
+    if (!staticOverlay.isNull()) {
+        painter.drawPixmap(0, 0, staticOverlay);
+    }
+    drawDynamic(&painter, width(), height());
+    QWidget::paintEvent(event);
+}
 
-    // Create QPainter for the QImage
-    QPainter painter(&image);
+void OverlayWidget::pushOverlayToQueue(int width, int height) {
+    if (!m_overlayInfo) {
+        qDebug() << "Warning: OverlayFrameInfo not provided, skipping queue push.";
+        return;
+    }
+
+    QImage frame;
+
+    {
+        QMutexLocker locker(m_overlayInfo->mutex);
+        if (!m_overlayInfo->originalQueue.empty()) {
+            frame = m_overlayInfo->originalQueue.front();
+            m_overlayInfo->originalQueue.pop_front();
+        }
+    }
+
+    if (frame.isNull()) { return; }
+
+    // Проверяем формат QImage
+    QImage overlayImage = frame.copy();
+
+
+    QPainter painter(&overlayImage);
+    if (!painter.isActive()) {
+        qDebug() << "Error: QPainter failed to initialize on QImage.";
+        return;
+    }
+
     painter.setRenderHint(QPainter::Antialiasing, true);
+    drawStatic(&painter, 1440, 1080); // не работает как надо, кадры не поступают
+    drawDynamic(&painter, 1440, 1080);
 
-    // Draw the overlay on the QImage
-    drawOverlay(&painter, width, height);
+    // Конвертируем QImage в cv::Mat
+    cv::Mat matWithOverlay(overlayImage.height(), overlayImage.width(), CV_8UC3, overlayImage.bits(), overlayImage.bytesPerLine());
 
-    // Convert QImage to cv::Mat (CV_8UC4 for BGRA)
-    cv::Mat mat(height, width, CV_8UC4, image.bits(), image.bytesPerLine());
+    {
+        QMutexLocker locker(m_overlayInfo->mutex);
+        m_overlayInfo->overlayQueue.push_back(matWithOverlay.clone());
+        if (m_overlayInfo->overlayQueue.size() > m_overlayInfo->maxQueueSize) {
+            m_overlayInfo->overlayQueue.pop_front();
 
-    // Return a clone to avoid lifetime issues
-    return mat.clone();
+        }
+    }
 }
 
 float constrainff(const float value, const float lower_limit, const float upper_limit){
@@ -1148,7 +1306,20 @@ void OverlayWidget::controlsUpdate(const bool& stabEnabled,
 
 void OverlayWidget::updateOverlay(){
     emit requestOverlayDataUpdate();
-    this->setGeometry(0, 0, parentWidget->width(), parentWidget->height());
+
+    int w = parentWidget->width();
+    int h = parentWidget->height();
+    this->setGeometry(0, 0, w, h);
+
+    // Проверяем и обновляем кэш, если размер изменился или кэш невалиден
+    if (!cacheValid || staticOverlay.size() != QSize(w, h)) {
+        staticOverlay = QPixmap(w, h);
+        staticOverlay.fill(Qt::transparent);
+        QPainter cachePainter(&staticOverlay);
+        drawStatic(&cachePainter, w, h);
+        cacheValid = true;
+    }
+
     this->update();
 }
 
@@ -1159,4 +1330,8 @@ void OverlayWidget::countRevolutions(){
     else if (delta < -180.0)
         revolutionCount++;
     prevYaw = oYaw;
+}
+
+void OverlayWidget::pushOverlayToQueueSlot() {
+    pushOverlayToQueue(parentWidget->width(), parentWidget->height());
 }

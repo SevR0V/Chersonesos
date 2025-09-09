@@ -2,7 +2,7 @@
 
 QLoggingCategory catCamera("camera");
 
-Camera::Camera(QStringList& names, QObject* parent) : QObject(parent), m_cameraNames(names), m_reconnectAttempts(0) {
+Camera::Camera(QStringList& names, OverlayFrameInfo* overlayInfo, QObject* parent) : QObject(parent), m_cameraNames(names), m_reconnectAttempts(0), m_overlayInfo(overlayInfo) {
     qCDebug(catCamera) << "Создание объекта Camera";
     memset(&m_deviceList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
 
@@ -52,12 +52,10 @@ Camera::~Camera() {
         delete m_cameras[i];
         delete m_streamInfos[i];
         delete m_recordInfos[i];
-        delete m_overlayInfos[i];
     }
     m_cameras.clear();
     m_streamInfos.clear();
     m_recordInfos.clear();
-    m_overlayInfos.clear();
     qCDebug(catCamera) << "Объект Camera уничтожен.";
     qCDebug(catCamera) << "Good Luck!";
 }
@@ -102,7 +100,7 @@ void Camera::initializeCameras() {
         CameraFrameInfo* frameInfo = m_cameras[i];
         StreamFrameInfo* streamInfo = m_streamInfos[i];
         RecordFrameInfo* recordInfo = m_recordInfos[i];
-        OverlayFrameInfo* overlayInfo = m_overlayInfos[i];
+        OverlayFrameInfo* overlayInfo = m_overlayInfo;
         qCDebug(catCamera) << "Инициализация камеры" << frameInfo->name << "с ID" << frameInfo->id;
         getHandle(frameInfo->id, &frameInfo->handle, frameInfo->name.toStdString());
         streamInfo->id = frameInfo->id;
@@ -140,7 +138,7 @@ void Camera::initializeCameras() {
 
         memset(&frameInfo->frame, 0, sizeof(MV_DISPLAY_FRAME_INFO));
 
-        frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo);
+        frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo, overlayInfo);
         frameInfo->thread = new QThread(this);
         frameInfo->worker->moveToThread(frameInfo->thread);
         qCDebug(catCamera) << "Создан поток захвата для камеры" << frameInfo->name;
@@ -183,7 +181,7 @@ void Camera::reinitializeCameras() {
         CameraFrameInfo* frameInfo = m_cameras[i];
         StreamFrameInfo* streamInfo = m_streamInfos[i];
         RecordFrameInfo* recordInfo = m_recordInfos[i];
-        OverlayFrameInfo* overlayInfo = m_overlayInfos[i];
+        OverlayFrameInfo* overlayInfo = m_overlayInfo;
         qCDebug(catCamera) << "Инициализация камеры" << frameInfo->name << "с ID" << frameInfo->id;
         getHandle(frameInfo->id, &frameInfo->handle, frameInfo->name.toStdString());
         streamInfo->id = frameInfo->id;
@@ -221,7 +219,7 @@ void Camera::reinitializeCameras() {
 
         memset(&frameInfo->frame, 0, sizeof(MV_DISPLAY_FRAME_INFO));
 
-        frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo);
+        frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo, overlayInfo);
         frameInfo->thread = new QThread(this);
         frameInfo->worker->moveToThread(frameInfo->thread);
         qCDebug(catCamera) << "Создан поток захвата для камеры" << frameInfo->name;
@@ -598,10 +596,6 @@ const QList<CameraFrameInfo*>& Camera::getCameras() const {
     return m_cameras;
 }
 
-const QList<OverlayFrameInfo*>& Camera::getOverlayInfos() const {
-    return m_overlayInfos;
-}
-
 QStringList Camera::getCameraNames() const {
     return m_cameraNames;
 }
@@ -634,7 +628,6 @@ int Camera::checkCameras() {
     m_cameras.clear();
     m_streamInfos.clear();
     m_recordInfos.clear();
-    m_overlayInfos.clear();
     for (unsigned int i = 0; i < m_deviceList.nDeviceNum; i++) {
         if (!m_deviceList.pDeviceInfo[i]) continue;
         std::stringstream cameraName;
@@ -647,7 +640,6 @@ int Camera::checkCameras() {
             CameraFrameInfo* frameInfo = new CameraFrameInfo();
             StreamFrameInfo* streamInfo = new StreamFrameInfo();
             RecordFrameInfo* recordInfo = new RecordFrameInfo();
-            OverlayFrameInfo* overlayInfo = new OverlayFrameInfo();
             frameInfo->name = camName;
             frameInfo->id = i;
             streamInfo->name = camName;
@@ -657,7 +649,6 @@ int Camera::checkCameras() {
             m_cameras.append(frameInfo);
             m_streamInfos.append(streamInfo);
             m_recordInfos.append(recordInfo);
-            m_overlayInfos.append(overlayInfo);
             qCDebug(catCamera) << "Добавлена камера" << camName << "с ID" << i;
         } else {
             qCDebug(catCamera) << "Камера" << camName << "пропущена, так как отсутствует в m_cameraNames";

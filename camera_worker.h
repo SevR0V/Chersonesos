@@ -11,7 +11,7 @@
 class CameraWorker : public QObject {
     Q_OBJECT
 public:
-    explicit CameraWorker(CameraFrameInfo* frameInfo, StreamFrameInfo* streamInfo, RecordFrameInfo* recordInfo, QObject* parent = nullptr);
+    explicit CameraWorker(CameraFrameInfo* frameInfo, StreamFrameInfo* streamInfo, RecordFrameInfo* recordInfo, OverlayFrameInfo* overlayInfo, QObject* parent = nullptr);
     ~CameraWorker();
 
 public slots:
@@ -20,12 +20,12 @@ public slots:
 
 private:
     void cleanupCamera();
-
-private:
     CameraFrameInfo* m_frameInfo;
     StreamFrameInfo* m_streamInfo;
     RecordFrameInfo* m_recordInfo;
+    OverlayFrameInfo* m_overlayInfo;
     bool m_isRunning;
+    bool isLeftCamera = false;
 
 signals:
     void frameReady();
