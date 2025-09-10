@@ -430,7 +430,7 @@ void MainWindow::startRecord() {
     isStereoRecording = false;
 
     if (isRecording) {
-        emit startRecordingSignal("LCamera", 120, 0, Both);
+        emit startRecordingSignal("LCamera", 120, 0, WithOverlay);
         if (isStereoRecording) {
             emit startRecordingSignal("RCamera", 120, 0, NoOverlay);
         }

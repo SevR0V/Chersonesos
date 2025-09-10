@@ -446,7 +446,11 @@ void Camera::startStreaming(const QString& cameraName, int port) {
         if (m_cameras[i]->name == cameraName) {
             cameraFound = true;
             StreamFrameInfo* streamInfo = m_streamInfos[i];
+            CameraFrameInfo* frameInfo = m_cameras[i];
             if (streamInfo->streamer && streamInfo->streamerThread) {
+
+                //disconnect(frameInfo->worker, &CameraWorker::frameReady, streamInfo->streamer, &VideoRecorder::recordFrame);
+
                 streamInfo->streamer->stopStreaming();
                 delete streamInfo->streamer;
                 streamInfo->streamer = nullptr;
@@ -455,6 +459,7 @@ void Camera::startStreaming(const QString& cameraName, int port) {
                 streamInfo->streamer->moveToThread(streamInfo->streamerThread);
                 qCDebug(catCamera) << "Запуск стриминга для камеры" << streamInfo->name;
                 connect(streamInfo->streamerThread, &QThread::started, streamInfo->streamer, &VideoStreamer::startStreaming, Qt::UniqueConnection);
+                connect(frameInfo->worker, &CameraWorker::frameReady, streamInfo->streamer, &VideoStreamer::processFrame, Qt::QueuedConnection);
                 connect(streamInfo->streamer, &VideoStreamer::streamingStarted, this, [this, frameInfo = m_cameras[i]]() {
                     qCDebug(catCamera) << "Стриминг начат для камеры" << frameInfo->name;
                     emit streamingStarted(frameInfo);
