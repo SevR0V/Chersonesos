@@ -63,6 +63,7 @@ private:
     RecordMode m_recordMode;
     cv::VideoWriter videoWriterOverlay;
     std::string fileNameOverlay;
+    cv::Size m_videoResolution;
 };
 
 #endif // VIDEO_RECORDER_H

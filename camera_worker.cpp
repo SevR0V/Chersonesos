@@ -52,7 +52,7 @@ void CameraWorker::capture() {
     int retryCount = 5;
     while (m_isRunning) {
         if (!m_isRunning) break;
-        nRet = MV_CC_GetImageBuffer(m_frameInfo->handle, &stOutFrame, 500);
+        nRet = MV_CC_GetImageBuffer(m_frameInfo->handle, &stOutFrame, 200);
         if (nRet == MV_OK && stOutFrame.pBufAddr) {
 
             cv::Mat bayerMat(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, CV_8UC1, stOutFrame.pBufAddr);

@@ -29,9 +29,6 @@ Camera::~Camera() {
         m_checkCameraTimer = nullptr;
     }
 
-    // Остановка всех потоков
-    stopAll(); // Убедитесь, что stopAll() вызывается только здесь, если не вызван ранее
-
     for (int i = 0; i < m_cameras.size(); ++i) {
         // Убедитесь, что потоки полностью завершены
         if (m_cameras[i]->thread && m_cameras[i]->thread->isRunning()) {
@@ -43,6 +40,10 @@ Camera::~Camera() {
         }
         qCDebug(catCamera) << "Удаление thread для" << m_cameras[i]->name;
         delete m_cameras[i]->thread;
+        delete m_cameras[i]->worker;
+        delete m_streamInfos[i]->streamer;
+        delete m_recordInfos[i]->recorder;
+
         m_cameras[i]->thread = nullptr;
 
         if (m_streamInfos[i]->streamerThread && m_streamInfos[i]->streamerThread->isRunning()) {

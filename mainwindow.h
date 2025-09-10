@@ -59,6 +59,7 @@ private slots:
     void handleCameraSuccess(const QString& component, const QString& message);
     void afterReconnect();
     void on_takeStereoframeButton_clicked();
+    void on_takeStereoSerialButton_clicked();
     void on_openStereoProcessingButton_clicked();
     void onDatagramReceived(const QByteArray &data, const QHostAddress &sender, quint16 port);
     void onJoystickUpdate(const DualJoystickState &state);
@@ -92,6 +93,7 @@ private:
     void showHideLeftPanel();
     bool isPanelHidden;
     bool isRecording;
+    bool isStereoSerail;
     bool masterState;
     int powerLimit;
     float camAngle;

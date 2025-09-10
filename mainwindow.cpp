@@ -180,13 +180,16 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow() {
     if (m_camera) {
+        emit stopAllCamerasSignal();  // Убедитесь, что всё остановлено
         QThread* cameraThread = m_camera->thread();
         if (cameraThread && cameraThread->isRunning()) {
             cameraThread->quit();
-            cameraThread->wait(5000);
+            if (!cameraThread->wait(10000)) {  // Увеличьте таймаут
+                qWarning() << "Camera thread не завершился! Не удаляем m_camera.";
+                return;  // Не delete, чтобы избежать краша (утечка, но лучше краша)
+            }
         }
         delete m_camera;
-        delete m_overlayFrameInfo;
         m_camera = nullptr;
     }
 
@@ -316,6 +319,25 @@ void MainWindow::on_takeStereoframeButton_clicked()
     emit stereoShotSignal();
 }
 
+void MainWindow::on_takeStereoSerialButton_clicked()
+{
+    isStereoSerail = !isStereoSerail;
+    if (isStereoSerail) {
+        int shots = 0;
+        QTimer* timer = new QTimer(this);
+        connect(timer, &QTimer::timeout, this, [=]() mutable {
+            if (shots < 5) {
+                emit stereoShotSignal();
+                shots++;
+            } else {
+                timer->stop();
+                timer->deleteLater();
+            }
+        });
+        timer->start(500);
+    }
+}
+
 void MainWindow::on_openStereoProcessingButton_clicked() {
     // Получаем путь к директории текущего приложения
     QString appDir = QCoreApplication::applicationDirPath();
@@ -408,7 +430,7 @@ void MainWindow::startRecord() {
     isStereoRecording = false;
 
     if (isRecording) {
-        emit startRecordingSignal("LCamera", 120, 0, WithOverlay);
+        emit startRecordingSignal("LCamera", 120, 0, Both);
         if (isStereoRecording) {
             emit startRecordingSignal("RCamera", 120, 0, NoOverlay);
         }
