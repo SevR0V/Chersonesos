@@ -19,50 +19,49 @@ void VideoRecorder::setRecordMode(RecordMode mode) {
 
 void VideoRecorder::manageStoredFiles() {
     QThreadPool::globalInstance()->start([this]() {
-            if (m_storedVideoFilesLimit == 0) {
-                QString errorMsg = QString("Старые записи не удаляются: проверяйте свободное место для камеры %1").arg(m_recordInfo->name);
-                qDebug() << errorMsg;
-                emit errorOccurred("VideoRecorder", errorMsg);
-                return;
+        if (m_storedVideoFilesLimit == 0) {
+            QString errorMsg = QString("Старые записи не удаляются: проверяйте свободное место для камеры %1").arg(m_recordInfo->name);
+            qDebug() << errorMsg;
+            emit errorOccurred("VideoRecorder", errorMsg);
+            return;
+        }
+
+        try {
+            std::vector<std::filesystem::directory_entry> videoFiles;
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(m_sessionDirectory)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".mp4") {
+                    videoFiles.push_back(entry);
+                }
             }
 
-            try {
-                std::vector<std::filesystem::directory_entry> videoFiles;
-                for (const auto& entry : std::filesystem::recursive_directory_iterator(m_sessionDirectory)) {
-                    if (entry.is_regular_file() && entry.path().extension() == ".avi") {
-                        videoFiles.push_back(entry);
-                    }
-                }
+            std::sort(videoFiles.begin(), videoFiles.end(),
+                      [](const std::filesystem::directory_entry& a, const std::filesystem::directory_entry& b) {
+                          return std::filesystem::last_write_time(a) < std::filesystem::last_write_time(b);
+                      });
 
-                std::sort(videoFiles.begin(), videoFiles.end(),
-                          [](const std::filesystem::directory_entry& a, const std::filesystem::directory_entry& b) {
-                              return std::filesystem::last_write_time(a) < std::filesystem::last_write_time(b);
-                          });
-
-                while (videoFiles.size() > static_cast<size_t>(m_storedVideoFilesLimit)) {
-                    try {
-                        std::filesystem::remove(videoFiles.front().path());
-                        qDebug() << "Удален старый видеофайл:" << QString::fromStdString(videoFiles.front().path().string());
-                        videoFiles.erase(videoFiles.begin());
-                    } catch (const std::filesystem::filesystem_error& e) {
-                        QString errorMsg = QString("Ошибка при удалении старого видеофайла %1: %2")
-                                               .arg(QString::fromStdString(videoFiles.front().path().string()))
-                                               .arg(e.what());
-                        qDebug() << errorMsg;
-                        emit errorOccurred("VideoRecorder", errorMsg);
-                    }
+            while (videoFiles.size() > static_cast<size_t>(m_storedVideoFilesLimit)) {
+                try {
+                    std::filesystem::remove(videoFiles.front().path());
+                    qDebug() << "Удален старый видеофайл:" << QString::fromStdString(videoFiles.front().path().string());
+                    videoFiles.erase(videoFiles.begin());
+                } catch (const std::filesystem::filesystem_error& e) {
+                    QString errorMsg = QString("Ошибка при удалении старого видеофайла %1: %2")
+                                           .arg(QString::fromStdString(videoFiles.front().path().string()))
+                                           .arg(e.what());
+                    qDebug() << errorMsg;
+                    emit errorOccurred("VideoRecorder", errorMsg);
                 }
-            } catch (const std::filesystem::filesystem_error& e) {
-                QString errorMsg = QString("Ошибка при управлении видеофайлами для камеры %1: %2")
-                                       .arg(m_recordInfo->name).arg(e.what());
-                qDebug() << errorMsg;
-                emit errorOccurred("VideoRecorder", errorMsg);
             }
+        } catch (const std::filesystem::filesystem_error& e) {
+            QString errorMsg = QString("Ошибка при управлении видеофайлами для камеры %1: %2")
+                                   .arg(m_recordInfo->name).arg(e.what());
+            qDebug() << errorMsg;
+            emit errorOccurred("VideoRecorder", errorMsg);
+        }
     });
 }
 
 void VideoRecorder::startRecording() {
-
     if (m_recordMode == WithOverlay || m_recordMode == Both) {
         if (!m_overlayInfo) {
             QString errorMsg = "OverlayInfo не предоставлен для режима с оверлеем";
@@ -162,8 +161,6 @@ void VideoRecorder::startRecording() {
     std::string timeDirName = generateTimeDirectoryName();
     m_sessionDirectory = dateDirectory / timeDirName;
 
-    //cachedFiles.clear();
-
     try {
         if (!std::filesystem::exists(m_sessionDirectory)) {
             if (!std::filesystem::create_directory(m_sessionDirectory)) {
@@ -196,6 +193,7 @@ void VideoRecorder::startRecording() {
         return;
     }
 
+    qDebug() << "Сессионная директория для записи:" << QString::fromStdString(m_sessionDirectory.string());
     startNewSegment();
 }
 
@@ -210,15 +208,13 @@ void VideoRecorder::stopRecording() {
         videoWriter.release();
         qDebug() << "Запись видео завершена для камеры" << m_recordInfo->name;
         emit recordingFinished();
-
-
     }
 
     if ((m_recordMode == WithOverlay || m_recordMode == Both) && videoWriterOverlay.isOpened()) {
         videoWriterOverlay.release();
         if (m_recordMode == Both) {
             std::filesystem::path newFilePathOverlay = m_sessionDirectory / fileNameOverlay;
-
+            qDebug() << "Путь оверлейного файла:" << QString::fromStdString(newFilePathOverlay.string());
         }
     }
     manageStoredFiles();
@@ -249,14 +245,12 @@ void VideoRecorder::recordFrame() {
     }
 
     if (hasFrame) {
-        // Инициализируем разрешение, если еще не
         if (m_videoResolution == cv::Size(0, 0)) {
             m_videoResolution = frame.size();
         }
 
         try {
             if (m_recordMode == Both) {
-                // Запись original в videoWriter
                 cv::Mat originalFrame;
                 bool hasOriginal = false;
                 {
@@ -271,7 +265,6 @@ void VideoRecorder::recordFrame() {
                     videoWriter.write(originalFrame);
                 }
 
-                // Запись overlay в videoWriterOverlay
                 if (videoWriterOverlay.isOpened()) {
                     videoWriterOverlay.write(frame);
                 }
@@ -281,7 +274,6 @@ void VideoRecorder::recordFrame() {
                 }
             }
             m_frameCount++;
-            //qDebug() << "Записан кадр #" << m_frameCount << "для файла" << QString::fromStdString(fileName) << ", время:" << m_timer.elapsed() / 1000.0 << "секунд";
         } catch (const cv::Exception& e) {
             QString errorMsg = QString("Ошибка записи кадра для камеры %1: %2")
                                    .arg(m_recordInfo->name).arg(e.what());
@@ -290,9 +282,6 @@ void VideoRecorder::recordFrame() {
             if (videoWriterOverlay.isOpened()) videoWriterOverlay.release();
             emit errorOccurred("VideoRecorder", errorMsg);
         }
-    } else {
-        //qDebug() << "Пропущен пустой кадр или VideoWriter не открыт для камеры" << m_recordInfo->name;
-        //return;
     }
 
     int maxFrames = m_recordInterval * m_realFPS;
@@ -308,12 +297,12 @@ void VideoRecorder::recordFrame() {
         emit recordingFinished();
 
         std::filesystem::path newFilePath = m_sessionDirectory / fileName;
+        qDebug() << "Путь записанного файла:" << QString::fromStdString(newFilePath.string());
 
         if (m_recordMode == Both) {
             std::filesystem::path newFilePathOverlay = m_sessionDirectory / fileNameOverlay;
-
+            qDebug() << "Путь записанного оверлейного файла:" << QString::fromStdString(newFilePathOverlay.string());
         }
-
 
         startNewSegment();
         manageStoredFiles();
@@ -325,15 +314,29 @@ void VideoRecorder::recordFrame() {
 }
 
 void VideoRecorder::startNewSegment() {
-    fileName = generateFileName("chersonesos", ".avi");
-    std::string filePath = (m_sessionDirectory / fileName).string();
+    fileName = generateFileName("chersonesos", ".mp4");
+    std::filesystem::path filePath = std::filesystem::absolute(m_sessionDirectory / fileName);
+    std::string filePathStr = filePath.string();
+    // Заменяем слеши на обратные слеши для Windows и экранируем их
+    std::replace(filePathStr.begin(), filePathStr.end(), '/', '\\');
+    std::string escapedPath;
+    for (char c : filePathStr) {
+        if (c == '\\') {
+            escapedPath += "\\\\";
+        } else {
+            escapedPath += c;
+        }
+    }
 
-    int fourccCode = cv::VideoWriter::fourcc('X', 'V', 'I', 'D');
+    // GStreamer pipeline для MP4 с экранированным абсолютным путем
+    std::string pipeline = "appsrc ! videoconvert ! x264enc ! mp4mux ! filesink location=\"" + escapedPath + "\"";
+    qDebug() << "GStreamer pipeline:" << QString::fromStdString(pipeline);
+    qDebug() << "Попытка записи в:" << QString::fromStdString(filePathStr);
 
-    videoWriter.open(filePath, fourccCode, m_realFPS, m_videoResolution);
+    videoWriter.open(pipeline, cv::CAP_GSTREAMER, 0, m_realFPS, m_videoResolution);
     if (!videoWriter.isOpened()) {
-        QString errorMsg = QString("Не удалось открыть VideoWriter для файла %1, Кодек: %2, FPS: %3, Разрешение: %4x%5")
-                               .arg(QString::fromStdString(filePath)).arg(fourccCode).arg(m_realFPS)
+        QString errorMsg = QString("Не удалось открыть VideoWriter для файла %1, Пайплайн: %2, FPS: %3, Разрешение: %4x%5")
+                               .arg(QString::fromStdString(filePathStr)).arg(QString::fromStdString(pipeline)).arg(m_realFPS)
                                .arg(m_videoResolution.width).arg(m_videoResolution.height);
         qDebug() << errorMsg;
         if (videoWriter.isOpened()) videoWriter.release();
@@ -346,21 +349,34 @@ void VideoRecorder::startNewSegment() {
     emit recordingStarted();
 
     if (m_recordMode == Both) {
-        fileNameOverlay = generateFileName("chersonesos_overlay", ".avi");
-        std::string filePathOverlay = (m_sessionDirectory / fileNameOverlay).string();
-        videoWriterOverlay.open(filePathOverlay, fourccCode, m_realFPS, m_videoResolution);
+        fileNameOverlay = generateFileName("chersonesos_overlay", ".mp4");
+        std::filesystem::path filePathOverlay = std::filesystem::absolute(m_sessionDirectory / fileNameOverlay);
+        std::string filePathOverlayStr = filePathOverlay.string();
+        // Заменяем слеши на обратные слеши и экранируем
+        std::replace(filePathOverlayStr.begin(), filePathOverlayStr.end(), '/', '\\');
+        std::string escapedOverlayPath;
+        for (char c : filePathOverlayStr) {
+            if (c == '\\') {
+                escapedOverlayPath += "\\\\";
+            } else {
+                escapedOverlayPath += c;
+            }
+        }
+        std::string pipelineOverlay = "appsrc ! videoconvert ! x264enc ! mp4mux ! filesink location=\"" + escapedOverlayPath + "\"";
+        qDebug() << "GStreamer pipeline (overlay):" << QString::fromStdString(pipelineOverlay);
+        qDebug() << "Попытка записи оверлея в:" << QString::fromStdString(filePathOverlayStr);
+
+        videoWriterOverlay.open(pipelineOverlay, cv::CAP_GSTREAMER, 0, m_realFPS, m_videoResolution);
         if (!videoWriterOverlay.isOpened()) {
-            QString errorMsg = QString("Не удалось открыть VideoWriter для оверлея %1").arg(QString::fromStdString(filePathOverlay));
+            QString errorMsg = QString("Не удалось открыть VideoWriter для оверлея %1").arg(QString::fromStdString(filePathOverlayStr));
             qDebug() << errorMsg;
             emit errorOccurred("VideoRecorder", errorMsg);
-            videoWriter.release(); // Закрываем основной, если оверлей не открылся
+            videoWriter.release();
             return;
         }
     } else if (m_recordMode == WithOverlay) {
         // Для WithOverlay используем только videoWriter для оверлея
     }
-
-
 }
 
 std::string VideoRecorder::sanitizeFileName(const std::string& input) {
@@ -377,7 +393,7 @@ std::string VideoRecorder::sanitizeFileName(const std::string& input) {
     while (!sanitized.empty() && sanitized.back() == '_') {
         sanitized.pop_back();
     }
-    if (sanitized.length() > 200) { // Увеличили лимит
+    if (sanitized.length() > 200) {
         sanitized = sanitized.substr(0, 200);
     }
     return sanitized.empty() ? "unknown_camera" : sanitized;

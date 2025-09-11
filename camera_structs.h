@@ -20,7 +20,7 @@ struct CameraFrameInfo {
     QString name;                       // Имя камеры (LCamera, RCamera, UCamera, DCamera и т.д.)
     unsigned int id = -1;               // ID камеры в списке устройств
     void* handle = nullptr;             // Дескриптор камеры
-    MV_DISPLAY_FRAME_INFO frame;        // Данные кадра
+    //MV_DISPLAY_FRAME_INFO frame;        // Данные кадра
     QMutex* mutex = nullptr;            // Указатель на мьютекс для синхронизации
     CameraWorker* worker = nullptr;     // Рабочий объект для захвата
     QThread* thread = nullptr;          // Поток для захвата

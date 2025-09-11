@@ -165,7 +165,7 @@ void Camera::initializeCameras() {
             }
         }
 
-        memset(&frameInfo->frame, 0, sizeof(MV_DISPLAY_FRAME_INFO));
+        //memset(&frameInfo->frame, 0, sizeof(MV_DISPLAY_FRAME_INFO));
 
         frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo, overlayInfo, stereoInfo);
         frameInfo->thread = new QThread(this);
@@ -248,7 +248,7 @@ void Camera::reinitializeCameras() {
             }
         }
 
-        memset(&frameInfo->frame, 0, sizeof(MV_DISPLAY_FRAME_INFO));
+        //memset(&frameInfo->frame, 0, sizeof(MV_DISPLAY_FRAME_INFO));
 
         frameInfo->worker = new CameraWorker(frameInfo, streamInfo, recordInfo, overlayInfo, stereoInfo);
         frameInfo->thread = new QThread(this);
