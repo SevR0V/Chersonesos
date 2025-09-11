@@ -29,6 +29,8 @@ MainWindow::MainWindow(QWidget *parent)
     camAngle = 0;
     lightsState = false;
 
+    lastRecordToggleTime = QDateTime();
+
     worker->moveToThread(workerThread);
     workerThread->start();
     connect(workerThread, &QThread::finished, worker, &QObject::deleteLater);
@@ -38,10 +40,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->enableStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
 
+    m_overlayFrameInfo = new OverlayFrameInfo();
     // Создание и настройка потока Camera
     QThread* cameraThread = new QThread(this);
     QStringList names = {"LCamera", "RCamera"};
-    m_camera = new Camera(names);
+    m_camera = new Camera(names, m_overlayFrameInfo);
     m_camera->moveToThread(cameraThread);
 
     // Подключение сигналов MainWindow к слотам Camera
@@ -52,6 +55,12 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this, &MainWindow::startStreamingSignal, m_camera, &Camera::startStreamingSlot, Qt::QueuedConnection);
     connect(this, &MainWindow::stopStreamingSignal, m_camera, &Camera::stopStreamingSlot, Qt::QueuedConnection);
     connect(this, &MainWindow::stereoShotSignal, m_camera, &Camera::stereoShotSlot, Qt::QueuedConnection);
+
+    connect(m_camera, &Camera::frameReady, this, [this](CameraFrameInfo* camera) {
+        if (camera->name == "LCamera") {
+            m_overlay->pushOverlayToQueueSlot();
+        }
+    }, Qt::QueuedConnection);
 
     // Подключение сигналов Camera к слотам MainWindow
     connect(m_camera, &Camera::greatSuccess, this, &MainWindow::handleCameraSuccess);
@@ -75,8 +84,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_label->setAlignment(Qt::AlignCenter);
     m_cameraLayout->addWidget(m_label);
 
-    // Создание и настройка оверлея
-    m_overlay = new OverlayWidget(m_label);
+    m_overlay = new OverlayWidget(m_label, m_overlayFrameInfo);
     m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
     m_overlay->show();
 
@@ -172,10 +180,14 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow() {
     if (m_camera) {
+        emit stopAllCamerasSignal();  // Убедитесь, что всё остановлено
         QThread* cameraThread = m_camera->thread();
         if (cameraThread && cameraThread->isRunning()) {
             cameraThread->quit();
-            cameraThread->wait(5000);
+            if (!cameraThread->wait(10000)) {  // Увеличьте таймаут
+                qWarning() << "Camera thread не завершился! Не удаляем m_camera.";
+                return;  // Не delete, чтобы избежать краша (утечка, но лучше краша)
+            }
         }
         delete m_camera;
         m_camera = nullptr;
@@ -204,15 +216,15 @@ void MainWindow::processFrame(CameraFrameInfo* camera)
     QImage img;
     {
         QMutexLocker lock(camera->mutex);
-        int front = camera->frontIndex.load(std::memory_order_acquire);
-        if (!camera->buffers[front].isNull()) {
-            img = camera->buffers[front].copy();  // Копируем для отображения
+        if (camera->sharedImg) {
+            img = *camera->sharedImg;
         }
     }
     if (!img.isNull() && camera->name == "LCamera") {
         m_label->setPixmap(QPixmap::fromImage(img));
-        // Обновляем геометрию оверлея при каждом обновлении изображения
         m_overlay->setGeometry(0, 0, m_label->width(), m_label->height());
+    } else {
+        //qDebug() << "Пустой кадр или неверная камера для отображения:" << camera->name;
     }
 }
 
@@ -281,12 +293,11 @@ void MainWindow::handleCameraSuccess(const QString& component, const QString& me
 {
 }
 
-void MainWindow::afterReconnect(Camera* camera)
-{
+void MainWindow::afterReconnect() {
     if (isRecording) {
-        emit startRecordingSignal("LCamera", 120, 0);
+        emit startRecordingSignal("LCamera", 120, 0, NoOverlay);  // Добавлен RecordMode
         if (isStereoRecording) {
-            emit startRecordingSignal("RCamera", 120, 0);
+            emit startRecordingSignal("RCamera", 120, 0, NoOverlay);  // Добавлен RecordMode
         }
     }
     emit startStreamingSignal("LCamera", 8080);
@@ -306,6 +317,25 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
 void MainWindow::on_takeStereoframeButton_clicked()
 {
     emit stereoShotSignal();
+}
+
+void MainWindow::on_takeStereoSerialButton_clicked()
+{
+    isStereoSerail = !isStereoSerail;
+    if (isStereoSerail) {
+        int shots = 0;
+        QTimer* timer = new QTimer(this);
+        connect(timer, &QTimer::timeout, this, [=]() mutable {
+            if (shots < 5) {
+                emit stereoShotSignal();
+                shots++;
+            } else {
+                timer->stop();
+                timer->deleteLater();
+            }
+        });
+        timer->start(500);
+    }
 }
 
 void MainWindow::on_openStereoProcessingButton_clicked() {
@@ -383,18 +413,26 @@ void setMasterButtonState(QPushButton *button, const bool masterState, const boo
     }
 }
 
-void MainWindow::startRecord()
-{
+void MainWindow::startRecord() {
+    // Проверка на быстрое нажатие (debounce)
+    QDateTime now = QDateTime::currentDateTime();
+    if (lastRecordToggleTime.isValid() && now < lastRecordToggleTime.addSecs(5)) {
+        qDebug() << "Слишком быстрое нажатие кнопки записи";
+        return;
+    }
+
     // ui->recordStereoCheckBox->setDisabled(!isRecording);
     isRecording = !isRecording;
     // isStereoRecording = ui->recordStereoCheckBox->isChecked();
 
     setRecordButtonState(ui->startRecordButton, isRecording, isPanelHidden);
 
+    isStereoRecording = false;
+
     if (isRecording) {
-        emit startRecordingSignal("LCamera", 120, 0);
+        emit startRecordingSignal("LCamera", 120, 0, WithOverlay);
         if (isStereoRecording) {
-            emit startRecordingSignal("RCamera", 120, 0);
+            emit startRecordingSignal("RCamera", 120, 0, NoOverlay);
         }
     } else {
         emit stopRecordingSignal("LCamera");
@@ -402,6 +440,9 @@ void MainWindow::startRecord()
             emit stopRecordingSignal("RCamera");
         }
     }
+
+    // Обновляем время последнего успешного переключения
+    lastRecordToggleTime = now;
 }
 
 void setRecordButtonState(QPushButton *button, const bool isRecording, const bool isPanelHidden)

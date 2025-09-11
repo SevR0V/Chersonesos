@@ -6,6 +6,8 @@
 #include <QList>
 #include <QStringList>
 #include <QTimer>
+#include <QtConcurrent>
+#include <QLoggingCategory>
 #include <set>
 #include <filesystem>
 #include <sstream>
@@ -17,7 +19,6 @@
 #include "camera_worker.h"
 #include "video_recorder.h"
 #include "video_streamer.h"
-#include <QtConcurrent>
 
 class CameraWorker;
 class VideoRecorder;
@@ -26,17 +27,19 @@ class VideoStreamer;
 class Camera : public QObject {
     Q_OBJECT
 public:
-    explicit Camera(QStringList& names, QObject* parent = nullptr);
+    explicit Camera(QStringList& names, OverlayFrameInfo* overlayInfo, QObject* parent = nullptr);
     ~Camera();
 
     const QList<CameraFrameInfo*>& getCameras() const;
+    const QList<OverlayFrameInfo*>& getOverlayInfos() const;
     QStringList getCameraNames() const;
     void setCameraNames(const QStringList& names);
+    void setRecordMode(const QString& cameraName, RecordMode mode);
 
 public slots:
     void startCamera();
     void stopAllCameras();
-    void startRecordingSlot(const QString& cameraName, int recordInterval, int storedVideoFilesLimit);
+    void startRecordingSlot(const QString& cameraName, int recordInterval, int storedVideoFilesLimit, RecordMode mode);
     void stopRecordingSlot(const QString& cameraName);
     void startStreamingSlot(const QString& cameraName, int port);
     void stopStreamingSlot(const QString& cameraName);
@@ -62,18 +65,20 @@ private:
     QList<CameraFrameInfo*> m_cameras;
     QList<StreamFrameInfo*> m_streamInfos;
     QList<RecordFrameInfo*> m_recordInfos;
+    QList<StereoFrameInfo*> m_stereoInfos;
+    OverlayFrameInfo* m_overlayInfo = nullptr;
     MV_CC_DEVICE_INFO_LIST m_deviceList;
     QTimer* m_checkCameraTimer;
     int m_reconnectAttempts;
     std::set<unsigned int> m_usedIPs;
-    std::filesystem::path m_sessionDirectory; // Путь к сессионной папке
+    std::filesystem::path m_sessionDirectory;
 
     int checkCameras();
     void initializeCameras();
     void reinitializeCameras();
     void start();
     void stopAll();
-    void startRecording(const QString& cameraName, int recordInterval, int storedVideoFilesLimit);
+    void startRecording(const QString& cameraName, int recordInterval, int storedVideoFilesLimit, RecordMode mode);
     void stopRecording(const QString& cameraName);
     void startStreaming(const QString& cameraName, int port);
     void stopStreaming(const QString& cameraName);

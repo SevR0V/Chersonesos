@@ -6,6 +6,7 @@
 #include <QThread>
 #include <QElapsedTimer>
 #include <QMutexLocker>
+#include <QtConcurrent>
 #include <filesystem>
 #include <sstream>
 #include <ctime>
@@ -15,12 +16,19 @@
 #include <opencv2/opencv.hpp>
 #include "camera_structs.h"
 
+enum RecordMode {
+    NoOverlay,
+    WithOverlay,
+    Both
+};
+
 class VideoRecorder : public QObject {
     Q_OBJECT
 public:
-    explicit VideoRecorder(RecordFrameInfo* recordInfo, QObject* parent = nullptr);
+    explicit VideoRecorder(RecordFrameInfo* recordInfo, OverlayFrameInfo* overlayInfo, QObject* parent = nullptr);
     void setRecordInterval(int interval);
     void setStoredVideoFilesLimit(int limit);
+    void setRecordMode(RecordMode mode);
 
 public slots:
     void startRecording();
@@ -34,6 +42,7 @@ signals:
     void errorOccurred(const QString& component, const QString& message);
 
 private:
+    std::vector<std::filesystem::path> cachedFiles;
     void manageStoredFiles();
     void startNewSegment();
     std::string sanitizeFileName(const std::string& input);
@@ -50,6 +59,11 @@ private:
     std::filesystem::path m_sessionDirectory;
     int m_frameCount; // Счетчик кадров для текущего сегмента
     int m_realFPS; // Заданный FPS для записи
+    OverlayFrameInfo* m_overlayInfo;
+    RecordMode m_recordMode;
+    cv::VideoWriter videoWriterOverlay;
+    std::string fileNameOverlay;
+    cv::Size m_videoResolution;
 };
 
 #endif // VIDEO_RECORDER_H

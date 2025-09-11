@@ -41,7 +41,7 @@ public:
 signals:
     void startCameraSignal();
     void stopAllCamerasSignal();
-    void startRecordingSignal(const QString& cameraName, int recordInterval, int storedVideoFilesLimit);
+    void startRecordingSignal(const QString& cameraName, int recordInterval, int storedVideoFilesLimit, RecordMode mode);
     void stopRecordingSignal(const QString& cameraName);
     void startStreamingSignal(const QString& cameraName, int port);
     void stopStreamingSignal(const QString& cameraName);
@@ -57,8 +57,9 @@ private slots:
     void processFrame(CameraFrameInfo* camera);
     void handleCameraError(const QString& component, const QString& message);
     void handleCameraSuccess(const QString& component, const QString& message);
-    void afterReconnect(Camera* camera);
+    void afterReconnect();
     void on_takeStereoframeButton_clicked();
+    void on_takeStereoSerialButton_clicked();
     void on_openStereoProcessingButton_clicked();
     void onDatagramReceived(const QByteArray &data, const QHostAddress &sender, quint16 port);
     void onJoystickUpdate(const DualJoystickState &state);
@@ -92,6 +93,7 @@ private:
     void showHideLeftPanel();
     bool isPanelHidden;
     bool isRecording;
+    bool isStereoSerail;
     bool masterState;
     int powerLimit;
     float camAngle;
@@ -112,6 +114,8 @@ private:
     QThread *workerThread;
     GamepadWorker *worker;
     OverlayWidget* m_overlay;
+    QDateTime lastRecordToggleTime;
+    OverlayFrameInfo* m_overlayFrameInfo = nullptr;
 };
 
 #endif // MAINWINDOW_H

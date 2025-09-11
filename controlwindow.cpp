@@ -8,7 +8,6 @@
 #include "gamepadworker.h"
 
 
-
 ControlWindow::ControlWindow(GamepadWorker *worker, ProfileManager *profileManager, QWidget *parent)
     : QWidget(parent)
     , isJoyListenerFinished(false),

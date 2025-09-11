@@ -7,13 +7,15 @@
 #include "udptelemetryparser.h"
 #include <QColor>
 #include <QPoint>
+#include <opencv2/opencv.hpp>
+#include "camera_structs.h"
 
 class OverlayWidget : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit OverlayWidget(QWidget *parent = nullptr);
+    explicit OverlayWidget(QWidget *parent = nullptr, OverlayFrameInfo* overlayInfo = nullptr);
     void telemetryUpdate(TelemetryPacket& telemetry);
     void controlsUpdate(const bool& stabEnabled,
                         const bool& stabRoll,
@@ -26,14 +28,17 @@ public:
                         const bool &lightsState);
 
 public slots:
+    void pushOverlayToQueueSlot();
 
 signals:
     void requestOverlayDataUpdate();
 
 private:
     QTimer *frameTimer;
+    QTimer *pushTimer;
 
     void updateOverlay();
+
 
     bool ostabEnabled;
     bool ostabRoll;
@@ -56,8 +61,20 @@ private:
     float prevYaw;
     float revolutionCount;
     QWidget *parentWidget;
+    OverlayFrameInfo* m_overlayInfo;
 
     void countRevolutions();
+    void drawOverlay(QPainter* painter, int width, int height);
+    void drawDynamic(QPainter* painter, int width, int height);
+    void drawStatic(QPainter* painter, int width, int height);
+
+    QPixmap staticOverlay;
+    bool cacheValid = false;
+
+    void pushOverlayToQueue(int width, int height);
+
+private slots:
+
 
 protected:
     void paintEvent(QPaintEvent *event) override;
