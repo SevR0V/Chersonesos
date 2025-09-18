@@ -329,7 +329,9 @@ void VideoRecorder::startNewSegment() {
     }
 
     // GStreamer pipeline для MP4 с экранированным абсолютным путем
-    std::string pipeline = "appsrc ! videoconvert ! x264enc ! mp4mux ! filesink location=\"" + escapedPath + "\"";
+    //std::string pipeline = "appsrc ! videoconvert ! x264enc  ! mp4mux ! filesink location=\"" + escapedPath + "\"";
+    std::string pipeline = "appsrc ! videoconvert ! x264enc speed-preset=ultrafast tune=zerolatency ! mp4mux ! filesink location=\"" + escapedPath + "\"";
+
     qDebug() << "GStreamer pipeline:" << QString::fromStdString(pipeline);
     qDebug() << "Попытка записи в:" << QString::fromStdString(filePathStr);
 
@@ -362,7 +364,9 @@ void VideoRecorder::startNewSegment() {
                 escapedOverlayPath += c;
             }
         }
-        std::string pipelineOverlay = "appsrc ! videoconvert ! x264enc ! mp4mux ! filesink location=\"" + escapedOverlayPath + "\"";
+        //std::string pipelineOverlay = "appsrc ! videoconvert ! x264enc ! mp4mux ! filesink location=\"" + escapedOverlayPath + "\"";
+
+        std::string pipelineOverlay = "appsrc ! videoconvert ! x264enc speed-preset=ultrafast tune=zerolatency ! mp4mux ! filesink location=\"" + escapedPath + "\"";
         qDebug() << "GStreamer pipeline (overlay):" << QString::fromStdString(pipelineOverlay);
         qDebug() << "Попытка записи оверлея в:" << QString::fromStdString(filePathOverlayStr);
 

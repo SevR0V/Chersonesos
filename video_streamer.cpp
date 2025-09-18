@@ -117,6 +117,7 @@ void VideoStreamer::processFrame() {
         if (!m_streamInfo->frameQueue.empty()) {
             frame = m_streamInfo->frameQueue.front();
             m_streamInfo->frameQueue.pop_front();
+            frame = frame.clone();
         }
     }
 
