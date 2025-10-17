@@ -40,14 +40,78 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->enableStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
 
+    profileManager = new ProfileManager();
+    controlsWindow = new ControlWindow(worker, profileManager);
+    settingsDialog = new SettingsDialog;
+
+    connect(ui->controlsButton, &QPushButton::pressed, this, [this]() { controlsWindow->show(); });
+    connect(ui->settingsButton, &QPushButton::pressed, this, [this]() { settingsDialog->show(); });
+    connect(ui->startRecordButton, &QPushButton::pressed, this, &MainWindow::startRecord);
+    connect(ui->hideShowButton, &QPushButton::pressed, this, &MainWindow::showHideLeftPanel);
+    connect(ui->masterButton, &QPushButton::pressed, this, &MainWindow::masterSwitch);
+
+    ui->powerGroupBox->setStyleSheet("QGroupBox { border: 0px; }");
+
+    QIcon locked(":/Resources/Icons/lock_closed.ico");
+    ui->masterButton->setIcon(locked);
+    ui->masterButton->setIconSize(QSize(28, 28));
+
+    QIcon leftArrow(":/Resources/Icons/left_arrow.ico");
+    ui->hideShowButton->setIcon(leftArrow);
+    ui->hideShowButton->setIconSize(QSize(28, 28));
+
+    QIcon icon(":/Resources/Icons/circle_black.ico");
+    ui->startRecordButton->setIcon(icon);
+    ui->startRecordButton->setIconSize(QSize(14, 14));
+
+    UdpTelemetryParser *telemetryParser = new UdpTelemetryParser();
+
+    udpHandler = new UdpHandler(profileManager, telemetryParser, worker);
+    udpHandler->settingsChanged();
+
+    connect(settingsDialog, &SettingsDialog::settingsChanged, udpHandler, &UdpHandler::settingsChanged);
+    connect(settingsDialog, &SettingsDialog::settingsChangedPID, this, &MainWindow::updatePID);
+    connect(settingsDialog, &SettingsDialog::settingsChangedAngle, this, &MainWindow::resetAngle);
+
+    udpHandler->moveToThread(udpThread);
+    udpThread->start();
+    connect(udpThread, &QThread::finished, udpHandler, &QObject::deleteLater);
+    connect(udpHandler, &UdpHandler::datagramReceived, this, &MainWindow::onDatagramReceived);
+    connect(udpHandler, &UdpHandler::onlineStateChanged, this, &MainWindow::onlineStateChanged);
+    connect(udpHandler, &UdpHandler::recordingStartStop, this, &MainWindow::startRecord);
+    connect(udpHandler, &UdpHandler::takeFrame, this, &MainWindow::on_takeStereoframeButton_clicked);
+
+    SettingsManager &settingsManager = SettingsManager::instance();
+    controlsWindow->loadProfile(settingsManager.getLastActiveProfile());
+
+    connect(controlsWindow->profileManager, &ProfileManager::profileNameChange, this, &MainWindow::activeProfileChanged);
+
+    connect(udpHandler, &UdpHandler::updateMaster, this, &MainWindow::updateMasterFromControl);
+    connect(udpHandler, &UdpHandler::updatePowerLimit, ui->powerSlider, &QSlider::setValue);
+    connect(ui->powerSlider, &QSlider::valueChanged, udpHandler, &UdpHandler::updatePowerLimitFromGui);
+    connect(ui->powerSlider, &QSlider::valueChanged, [this](const int &value){
+        this->powerLimit = value;
+    });
+    connect(this, &MainWindow::masterChanged, udpHandler, &UdpHandler::masterChangedGui);
+    connect(settingsDialog, &SettingsDialog::settingsChangedPID, udpHandler, &UdpHandler::updatePID);
+    connect(m_overlay, &OverlayWidget::requestOverlayDataUpdate, this, &MainWindow::updateOverlayData);
+    connect(telemetryParser, &UdpTelemetryParser::telemetryReceived, this, &MainWindow::telemetryReceived);
+
+    connect(ui->enableDepthStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
+    connect(ui->enableRollStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
+    connect(ui->enablePitchStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
+    connect(ui->enableYawStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
+    connect(this, &MainWindow::stabUpdated, udpHandler, &UdpHandler::stabStateChanged);
+    connect(udpHandler, &UdpHandler::lightStateChanged, this, &MainWindow::updateLightState, Qt::QueuedConnection);
+
+    // Настройка камеры
     m_overlayFrameInfo = new OverlayFrameInfo();
-    // Создание и настройка потока Camera
     QThread* cameraThread = new QThread(this);
     QStringList names = {"LCamera", "RCamera"};
     m_camera = new Camera(names, m_overlayFrameInfo);
     m_camera->moveToThread(cameraThread);
 
-    // Подключение сигналов MainWindow к слотам Camera
+    // Подключение сигналов
     connect(this, &MainWindow::startCameraSignal, m_camera, &Camera::startCamera, Qt::QueuedConnection);
     connect(this, &MainWindow::stopAllCamerasSignal, m_camera, &Camera::stopAllCameras, Qt::QueuedConnection);
     connect(this, &MainWindow::startRecordingSignal, m_camera, &Camera::startRecordingSlot, Qt::QueuedConnection);
@@ -62,7 +126,6 @@ MainWindow::MainWindow(QWidget *parent)
         }
     }, Qt::QueuedConnection);
 
-    // Подключение сигналов Camera к слотам MainWindow
     connect(m_camera, &Camera::greatSuccess, this, &MainWindow::handleCameraSuccess);
     connect(m_camera, &Camera::frameReady, this, &MainWindow::processFrame);
     connect(m_camera, &Camera::errorOccurred, this, &MainWindow::handleCameraError);
@@ -71,7 +134,22 @@ MainWindow::MainWindow(QWidget *parent)
 
     cameraThread->start();
 
-    // Запуск камеры через сигнал
+    // Показать окно сразу
+    this->show();
+
+    // Обновление интерфейса после успешной инициализации камер
+    connect(m_camera, &Camera::greatSuccess, this, [this](const QString& component, const QString& message) {
+        // Запуск стриминга после успешной инициализации
+        QTimer::singleShot(0, this, [this]() {
+            //emit startStreamingSignal("LCamera", 8080);
+            //emit startStreamingSignal("RCamera", 8081);
+        });
+    });
+
+    connect(m_camera, &Camera::errorOccurred, this, [this](const QString& component, const QString& message) {
+    });
+
+    // Запуск инициализации камер
     emit startCameraSignal();
 
     m_cameraLayout = new QHBoxLayout();
@@ -97,85 +175,6 @@ MainWindow::MainWindow(QWidget *parent)
         }
         qDebug() << "Установлен labelWinId для камеры" << cam->name << ":" << cam->labelWinId;
     }
-
-    QTimer::singleShot(5000, this, [this]() {
-        emit startStreamingSignal("LCamera", 8080);
-        emit startStreamingSignal("RCamera", 8081);
-    });
-
-
-    profileManager = new ProfileManager();
-    controlsWindow = new ControlWindow(worker, profileManager);
-    settingsDialog = new SettingsDialog;
-
-    connect(ui->controlsButton, &QPushButton::pressed, this, [this]() { controlsWindow->show(); });
-    connect(ui->settingsButton, &QPushButton::pressed, [this]() { settingsDialog->show(); });
-    connect(ui->startRecordButton, &QPushButton::pressed, this, &MainWindow::startRecord);
-    connect(ui->hideShowButton, &QPushButton::pressed, this, &MainWindow::showHideLeftPanel);
-    connect(ui->masterButton, &QPushButton::pressed, this, &MainWindow::masterSwitch);
-
-    ui->powerGroupBox->setStyleSheet("QGroupBox { border: 0px; }");
-
-    QIcon locked(":/Resources/Icons/lock_closed.ico");
-    ui->masterButton->setIcon(locked);
-    ui->masterButton->setIconSize(QSize(28, 28));
-
-    QIcon leftArrow(":/Resources/Icons/left_arrow.ico");
-    ui->hideShowButton->setIcon(leftArrow);
-    ui->hideShowButton->setIconSize(QSize(28, 28));
-
-    QIcon icon(":/Resources/Icons/circle_black.ico");
-    ui->startRecordButton->setIcon(icon);
-    ui->startRecordButton->setIconSize(QSize(14, 14));
-
-
-    // isStereoRecording = ui->recordStereoCheckBox->isChecked();
-
-    UdpTelemetryParser *telemetryParser = new UdpTelemetryParser();
-
-    udpHandler = new UdpHandler(profileManager, telemetryParser, worker);
-
-    udpHandler->settingsChanged();
-
-    connect(settingsDialog, &SettingsDialog::settingsChanged, udpHandler, &UdpHandler::settingsChanged);
-    connect(settingsDialog, &SettingsDialog::settingsChangedPID, this, &MainWindow::updatePID);
-    connect(settingsDialog, &SettingsDialog::settingsChangedAngle, this, &MainWindow::resetAngle);
-
-    udpHandler->moveToThread(udpThread);
-    udpThread->start();
-    connect(udpThread, &QThread::finished, udpHandler, &QObject::deleteLater);
-    connect(udpHandler, &UdpHandler::datagramReceived,
-            this, &MainWindow::onDatagramReceived);
-    connect(udpHandler, &UdpHandler::onlineStateChanged,
-            this, &MainWindow::onlineStateChanged);
-    connect(udpHandler, &UdpHandler::recordingStartStop, this, &MainWindow::startRecord);
-    connect(udpHandler, &UdpHandler::takeFrame, this, &MainWindow::on_takeStereoframeButton_clicked);
-
-    SettingsManager &settingsManager = SettingsManager::instance();
-
-    controlsWindow->loadProfile(settingsManager.getLastActiveProfile());
-
-    connect(controlsWindow->profileManager, &ProfileManager::profileNameChange, this, &MainWindow::activeProfileChanged);
-
-    connect(udpHandler, &UdpHandler::updateMaster, this, &MainWindow::updateMasterFromControl);
-    connect(udpHandler, &UdpHandler::updatePowerLimit, ui->powerSlider, &QSlider::setValue);
-    connect(ui->powerSlider, &QSlider::valueChanged, udpHandler, &UdpHandler::updatePowerLimitFromGui);
-    connect(ui->powerSlider, &QSlider::valueChanged, [this](const int &value){
-        this->powerLimit = value;
-    });
-    connect(this, &MainWindow::masterChanged, udpHandler, &UdpHandler::masterChangedGui);
-    connect(settingsDialog, &SettingsDialog::settingsChangedPID, udpHandler, &UdpHandler::updatePID);
-    connect(m_overlay, &OverlayWidget::requestOverlayDataUpdate, this, &MainWindow::updateOverlayData);
-    connect(telemetryParser, &UdpTelemetryParser::telemetryReceived, this, &MainWindow::telemetryReceived);
-
-    connect(ui->enableDepthStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
-    connect(ui->enableRollStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
-    connect(ui->enablePitchStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
-    connect(ui->enableYawStabCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::setStabState);
-    connect(this, &MainWindow::stabUpdated, udpHandler, &UdpHandler::stabStateChanged);
-    connect(udpHandler, &UdpHandler::lightStateChanged,
-            this, &MainWindow::updateLightState,
-            Qt::QueuedConnection);
 }
 
 MainWindow::~MainWindow() {

@@ -8,15 +8,6 @@ Camera::Camera(QStringList& names, OverlayFrameInfo* overlayInfo, QObject* paren
 
     m_checkCameraTimer = new QTimer(this);
     connect(m_checkCameraTimer, &QTimer::timeout, this, &Camera::checkCameras);
-
-    cleanupAllCameras();
-
-    if (checkCameras() != MV_OK) {
-        QString errorMsg = "Не удалось инициализировать камеры";
-        qCDebug(catCamera) << errorMsg;
-        emit errorOccurred("Camera", errorMsg);
-        return;
-    }
 }
 
 Camera::~Camera() {
@@ -87,6 +78,14 @@ Camera::~Camera() {
 }
 
 void Camera::startCamera() {
+    cleanupAllCameras();
+
+    if (checkCameras() != MV_OK) {
+        QString errorMsg = "Не удалось инициализировать камеры";
+        qCDebug(catCamera) << errorMsg;
+        emit errorOccurred("Camera", errorMsg);
+        return;
+    }
     start();
 }
 
@@ -717,7 +716,7 @@ int Camera::checkCameras() {
     cleanupAllCameras();
     reinitializeCameras();
     start();
-    QThread::msleep(5000);
+    //QThread::msleep(5000);
     emit reconnectDone(this);
 
     QString sMsg = QString("Инициализированы камеры: %1").arg(m_cameras.size());

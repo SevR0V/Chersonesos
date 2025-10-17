@@ -63,7 +63,15 @@ INCLUDEPATH += c:\opencv-4.12.0-build\install\include
 LIBS += -lwsock32
 LIBS += -lws2_32
 LIBS += -LC:\opencv-4.12.0-build\install\x64\vc17\lib
-LIBS += -lopencv_core4120 -lopencv_imgcodecs4120 -lopencv_highgui4120 -lopencv_features2d4120 -lopencv_calib3d4120 -lopencv_videoio4120 -lopencv_imgproc4120 -lopencv_ximgproc4120
+
+CONFIG(release, debug|release) {
+    LIBS += -lopencv_core4120 -lopencv_imgcodecs4120 -lopencv_highgui4120 -lopencv_features2d4120 \
+    -lopencv_calib3d4120 -lopencv_videoio4120 -lopencv_imgproc4120 -lopencv_ximgproc4120
+} else {
+    LIBS += -lopencv_core4120d -lopencv_imgcodecs4120d -lopencv_highgui4120d -lopencv_features2d4120d \
+    -lopencv_calib3d4120d -lopencv_videoio4120d -lopencv_imgproc4120d -lopencv_ximgproc4120d
+}
+
 
 LIBS += -LC:\MVS\Development\Libraries\win64 -lMvCameraControl
 INCLUDEPATH += c:\MVS\Development\Includes
