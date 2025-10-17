@@ -90,11 +90,6 @@ MainWindow::MainWindow(QWidget *parent)
         qDebug() << "Установлен labelWinId для камеры" << cam->name << ":" << cam->labelWinId;
     }
 
-    QTimer::singleShot(5000, this, [this]() {
-        emit startStreamingSignal("LCamera", 8080);
-        emit startStreamingSignal("RCamera", 8081);
-    });
-
 
     profileManager = new ProfileManager();
     controlsWindow = new ControlWindow(worker, profileManager);

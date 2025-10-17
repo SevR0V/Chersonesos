@@ -6,20 +6,11 @@ Camera::Camera(QStringList& names, QObject* parent) : QObject(parent), m_cameraN
 
     m_checkCameraTimer = new QTimer(this);
     connect(m_checkCameraTimer, &QTimer::timeout, this, &Camera::checkCameras);
-
-    cleanupAllCameras();
-
-    if (checkCameras() != MV_OK) {
-        QString errorMsg = "Не удалось инициализировать камеры";
-        qDebug() << errorMsg;
-        emit errorOccurred("Camera", errorMsg);
-        return;
-    }
 }
 
 Camera::~Camera() {
     qDebug() << "Уничтожение объекта Camera...";
-    stopAll();
+    //stopAll();
     cleanupAllCameras();
 
     if (m_checkCameraTimer) {
@@ -59,6 +50,15 @@ Camera::~Camera() {
 }
 
 void Camera::startCamera() {
+    cleanupAllCameras();
+
+    if (checkCameras() != MV_OK) {
+        QString errorMsg = "Не удалось инициализировать камеры";
+        qDebug() << errorMsg;
+        emit errorOccurred("Camera", errorMsg);
+        return;
+    }
+
     start();
 }
 
@@ -405,11 +405,15 @@ void Camera::stopRecording(const QString& cameraName) {
 void Camera::startStreaming(const QString& cameraName, int port) {
     qDebug() << "Попытка запуска стриминга для камеры" << cameraName << "на порту" << port;
     bool cameraFound = false;
-    for (size_t i = 0; i < m_cameras.size(); ++i) {
+    for (int i = 0; i < m_cameras.size(); ++i) {
         if (m_cameras[i]->name == cameraName) {
             cameraFound = true;
             StreamFrameInfo* streamInfo = m_streamInfos[i];
+            CameraFrameInfo* frameInfo = m_cameras[i];
             if (streamInfo->streamer && streamInfo->streamerThread) {
+
+                //disconnect(frameInfo->worker, &CameraWorker::frameReady, streamInfo->streamer, &VideoRecorder::recordFrame);
+
                 streamInfo->streamer->stopStreaming();
                 delete streamInfo->streamer;
                 streamInfo->streamer = nullptr;
@@ -418,6 +422,7 @@ void Camera::startStreaming(const QString& cameraName, int port) {
                 streamInfo->streamer->moveToThread(streamInfo->streamerThread);
                 qDebug() << "Запуск стриминга для камеры" << streamInfo->name;
                 connect(streamInfo->streamerThread, &QThread::started, streamInfo->streamer, &VideoStreamer::startStreaming, Qt::UniqueConnection);
+                connect(frameInfo->worker, &CameraWorker::frameReady, streamInfo->streamer, &VideoStreamer::processFrame, Qt::QueuedConnection);
                 connect(streamInfo->streamer, &VideoStreamer::streamingStarted, this, [this, frameInfo = m_cameras[i]]() {
                     qDebug() << "Стриминг начат для камеры" << frameInfo->name;
                     emit streamingStarted(frameInfo);
@@ -451,7 +456,7 @@ void Camera::startStreaming(const QString& cameraName, int port) {
 
 void Camera::stopStreaming(const QString& cameraName) {
     qDebug() << "Попытка остановки стриминга для камеры" << cameraName;
-    for (size_t i = 0; i < m_cameras.size(); ++i) {
+    for (int i = 0; i < m_cameras.size(); ++i) {
         if (m_cameras[i]->name == cameraName && m_streamInfos[i]->streamer) {
             QMetaObject::invokeMethod(m_streamInfos[i]->streamer, "stopStreaming", Qt::QueuedConnection);
             qDebug() << "Стриминг остановлен для камеры" << m_cameras[i]->name;
@@ -799,7 +804,7 @@ void Camera::getHandle(unsigned int cameraID, void** handle, const std::string& 
             qDebug() << errorMsg;
             emit errorOccurred("Camera", errorMsg);
             destroyCameras(*handle);
-            QThread::msleep(15000);
+            QThread::msleep(5000);
             nRet = MV_CC_CreateHandle(handle, m_deviceList.pDeviceInfo[cameraID]);
             if (nRet != MV_OK) {
                 QString errorMsg = QString("Не удалось пересоздать дескриптор для %1. Ошибка: %2")
