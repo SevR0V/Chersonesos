@@ -792,7 +792,7 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     int screenHeight = height();
     int CameraVerticalAngle = 56;
 
-    QColor defaultColor(Qt::lightGray);
+    QColor defaultColor(Qt::red);
 
     int centerX = screenWidth/2;
     int centerY = screenHeight/2;
