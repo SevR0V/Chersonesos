@@ -19,7 +19,6 @@ public:
 public slots:
     void startStreaming();
     void stopStreaming();
-    void processFrame();
 
 private slots:
     void closeAllConnections();

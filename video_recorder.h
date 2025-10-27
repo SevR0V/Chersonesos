@@ -6,6 +6,7 @@
 #include <QThread>
 #include <QElapsedTimer>
 #include <QMutexLocker>
+#include <QtConcurrent>
 #include <filesystem>
 #include <sstream>
 #include <ctime>
