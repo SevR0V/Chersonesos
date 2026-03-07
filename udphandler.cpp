@@ -303,7 +303,6 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     if(masterButtonState){
         if (!masterValueChangeFlag){
             cMASTER = !cMASTER;
-            emit updateMaster(cMASTER);
             masterValueChangeFlag = true;
         }
     } else {
@@ -345,6 +344,7 @@ void UdpHandler::onJoystickDataChange(const DualJoystickState joysticsState){
     // qDebug() << "Position reset: " << cPosReset;
     // qDebug() << "MASTER Switch: " << cMASTER;
     // qDebug() << "Video recording: " << cRecording;
+    emit updateControlData(cMASTER, cForwardThrust, cSideThrust, cYawThrust, cVerticalThrust);
 }
 
 std::pair<QString, bool> findInputByInputName(const QJsonObject& rootObj, const QString& targetInputName) {

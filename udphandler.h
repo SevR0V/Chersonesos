@@ -44,7 +44,7 @@ signals:
                           quint16 senderPort);
     void recordingStartStop();
     void takeFrame();
-    void updateMaster(const bool &masterState);
+    void updateControlData(const bool &masterState, const float &fThrust, const float &sThrust, const float &rThrust, const float &vThrust);
     void onlineStateChanged(const bool &onlineState);
     void updatePowerLimit(const int &powerLimit);
     void lightStateChanged(const bool &lightState);

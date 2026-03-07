@@ -1,6 +1,8 @@
 #include "overlaywidget.h"
 #include <QScreen>
 #include <QWindow>
+#include <QFontDatabase>
+#include <cmath>
 
 OverlayWidget::OverlayWidget(QWidget *parent) : QWidget(parent)
 {
@@ -27,6 +29,12 @@ OverlayWidget::OverlayWidget(QWidget *parent) : QWidget(parent)
     prevYaw = 0;
     revolutionCount = 0;
     parentWidget = parent;
+
+    ofThrust = 0;
+    osThrust = 0;
+    orThrust = 0;
+    ovThrust = 0;
+
     qreal refreshRate = 60;
     QScreen *screen = QGuiApplication::primaryScreen(); // или QApplication::screenAt(...)
     if (screen) {
@@ -262,15 +270,15 @@ void drawVerticalRuler(QPainter* painter,
         QFontMetrics fm = painter->fontMetrics();
         painter->setFont(font);
         QRect textRect = fm.boundingRect(pointerLabel);
-
+        int txtXOffset = 8;
         int textX = pointerLeft
-                        ? baseX - textRect.width() - 8
-                        : baseX + 8;
+                        ? baseX - textRect.width() - txtXOffset
+                        : baseX + txtXOffset;
 
         // int textY = pointerY + textRect.height() / 2 - fm.descent();
 
         QRect labelRect(textX, pointerY - textRect.height() / 2,
-                        textRect.width(), textRect.height());
+                        textRect.width()+10, textRect.height());
         if(pointerLeft)
             painter->drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, pointerLabel);
         else
@@ -721,6 +729,195 @@ void drawHorizontalSlidingRuler(QPainter* painter,
     }
 }
 
+void drawCircularCompass(QPainter* painter,
+                         const QPoint& center,
+                         int radius,
+                         double headingDeg,
+                         const QColor& color,
+                         const QFont& baseFont = QFont(),
+                         int lineWidth = 2,
+                         bool showHeadingText = true,
+                         const QString& title = QString())
+{
+    if (!painter || radius < 20)
+        return;
+
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+
+    const int cx = center.x();
+    const int cy = center.y();
+
+    double heading = std::fmod(headingDeg, 360.0);
+    if (heading < 0.0)
+        heading += 360.0;
+
+    // Все размеры через радиус, чтобы компас нормально ужимался
+    const int outerRingWidth   = std::max(1, radius / 22);
+    const int innerRadius      = std::max(8, int(radius * 0.72));
+
+    const int majorCardinalLen = std::max(8, int(radius * 0.18)); // N/E/S/W
+    const int majorLen         = std::max(6, int(radius * 0.11)); // 30°
+    const int minorLen         = std::max(3, int(radius * 0.06)); // 10°
+
+    const int northArrowLen    = std::max(10, int(radius * 0.16));
+    const int northArrowWidth  = std::max(6, int(radius * 0.10));
+
+    const int headingArrowLen  = std::max(10, int(innerRadius * 0.42));
+    const int headingArrowHalfW= std::max(4, int(innerRadius * 0.10));
+
+    const int centerDotR       = std::max(2, radius / 24);
+    const int cardinalOffset   = std::max(10, int(radius * 0.20));
+    const int headingTextGap   = std::max(10, int(radius * 0.16));
+    const int titleGap         = std::max(8, int(radius * 0.12));
+
+    QPen pen(color);
+    pen.setWidth(outerRingWidth);
+    painter->setPen(pen);
+    painter->setBrush(Qt::NoBrush);
+
+    // Кольца
+    painter->drawEllipse(center, radius, radius);
+    painter->drawEllipse(center, innerRadius, innerRadius);
+
+    // Риски
+    for (int markDeg = 0; markDeg < 360; markDeg += 10) {
+        const bool isCardinal = (markDeg % 90 == 0);
+        const bool isMajor    = (markDeg % 30 == 0);
+
+        int tickLen = minorLen;
+        if (isCardinal)
+            tickLen = majorCardinalLen;
+        else if (isMajor)
+            tickLen = majorLen;
+
+        double displayDeg = double(markDeg) - heading;
+        double rad = displayDeg * M_PI / 180.0;
+
+        QPointF p1(cx + std::sin(rad) * (radius - tickLen),
+                   cy - std::cos(rad) * (radius - tickLen));
+        QPointF p2(cx + std::sin(rad) * radius,
+                   cy - std::cos(rad) * radius);
+
+        painter->drawLine(p1, p2);
+    }
+
+    // Подписи сторон света — поворачиваются вместе с компасом
+    struct CardinalLabel {
+        int deg;
+        QString text;
+    };
+
+    const CardinalLabel labels[] = {
+        {  0, "N" },
+        { 90, "E" },
+        {180, "S" },
+        {270, "W" }
+    };
+
+    QFont cardinalFont = baseFont;
+    cardinalFont.setBold(true);
+    cardinalFont.setPixelSize(std::max(9, int(radius * 0.18)));
+    painter->setFont(cardinalFont);
+
+    QFontMetrics cfm(cardinalFont);
+
+    for (const auto& item : labels) {
+        double displayDeg = double(item.deg) - heading;
+        double rad = displayDeg * M_PI / 180.0;
+
+        QPointF pos(cx + std::sin(rad) * (radius - majorCardinalLen - cardinalOffset),
+                    cy - std::cos(rad) * (radius - majorCardinalLen - cardinalOffset));
+
+        painter->save();
+        painter->translate(pos);
+
+        // Поворачиваем букву по кругу вместе с компасом
+        painter->rotate(displayDeg);
+
+        QRect r = cfm.boundingRect(item.text);
+        painter->drawText(QPoint(-r.width() / 2, r.height() / 2 - cfm.descent()), item.text);
+        painter->restore();
+    }
+
+    // Стрелка СЕВЕРА — вращается вместе с севером
+    {
+        double northDisplayDeg = -heading;
+        double rad = northDisplayDeg * M_PI / 180.0;
+
+        QPointF dir(std::sin(rad), -std::cos(rad));
+        QPointF normal(-dir.y(), dir.x());
+
+        QPointF tip  = QPointF(cx, cy) + dir * (radius - 2);
+        QPointF base = QPointF(cx, cy) + dir * (radius - northArrowLen - 2);
+
+        QPolygonF northArrow;
+        northArrow << tip
+                   << (base + normal * northArrowWidth * 0.5)
+                   << (base - normal * northArrowWidth * 0.5);
+
+        painter->save();
+        painter->setBrush(color);
+        painter->drawPolygon(northArrow);
+        painter->restore();
+    }
+
+    // Стрелка направления аппарата — всегда вверх, но внутри внутреннего радиуса
+    {
+        QPoint tip(cx, cy - headingArrowLen);
+        QPoint left(cx - headingArrowHalfW, cy + headingArrowHalfW);
+        QPoint right(cx + headingArrowHalfW, cy + headingArrowHalfW);
+
+        QPolygon headingArrow;
+        headingArrow << tip << left << right;
+
+        painter->save();
+        painter->setBrush(color);
+        painter->drawPolygon(headingArrow);
+        painter->restore();
+    }
+
+    // Центральная точка
+    painter->setBrush(color);
+    painter->drawEllipse(center, centerDotR, centerDotR);
+    painter->setBrush(Qt::NoBrush);
+
+    // Текущий угол — снизу под компасом
+    if (showHeadingText) {
+        QFont valueFont = baseFont;
+        valueFont.setBold(true);
+        valueFont.setPixelSize(std::max(9, int(radius * 0.16)));
+        painter->setFont(valueFont);
+
+        QString headingText = QString::number(int(std::round(heading))) + QChar(0x00B0);
+        QFontMetrics vfm(valueFont);
+        QRect tr = vfm.boundingRect(headingText);
+
+        QPoint textPos(cx - tr.width() / 2,
+                       cy + radius + headingTextGap + tr.height());
+
+        painter->drawText(textPos, headingText);
+    }
+
+    // Заголовок ещё ниже, если нужен
+    if (!title.isEmpty()) {
+        QFont titleFont = baseFont;
+        titleFont.setPixelSize(std::max(8, int(radius * 0.13)));
+        painter->setFont(titleFont);
+
+        QFontMetrics tfm(titleFont);
+        QRect tr = tfm.boundingRect(title);
+
+        int y = cy + radius + headingTextGap
+                + std::max(12, int(radius * 0.18))
+                + titleGap + tr.height();
+
+        painter->drawText(QPoint(cx - tr.width() / 2, y), title);
+    }
+
+    painter->restore();
+}
+
 void drawBatteryIcon(QPainter* painter,
                      const QRect& rect,
                      double level,                             // 0.0 – 1.0
@@ -780,17 +977,239 @@ void drawBatteryIcon(QPainter* painter,
     painter->restore();
 }
 
+#include <cmath>
+
+#include <cmath>
+
+#include <cmath>
+
+void drawCompassThrustIndicator(QPainter* painter,
+                                const QPoint& center,
+                                int compassRadius,
+                                double ofThrust,   // forward/back   [-1..1]
+                                double osThrust,   // strafe         [-1..1]
+                                double orThrust,   // yaw rotation   [-1..1]
+                                double ovThrust,   // vertical       [-1..1]
+                                const QColor& color,
+
+                                // offsets / sizes
+                                int arcBaseOffset = 10,          // отступ дуг движения от компаса
+                                int arcLevelSpacing = 8,         // расстояние между уровнями дуг
+                                int arcThickness = 3,            // толщина линий
+                                int arcSpanDeg = 52,             // ширина дуг движения
+
+                                int rotArcOffset = 22,           // отступ дуговых стрелок вращения
+                                int rotArcSpacing = 8,           // расстояние между уровнями вращения
+                                int rotArcSpanDeg = 42,          // длина дуговой стрелки
+                                int rotArrowHeadSize = 8,        // размер наконечника дуговой стрелки
+
+                                int vertOffset = 22,             // отступ вертикального индикатора
+                                int vertSegLen = 8,              // длина сегмента
+                                int vertSegGap = 4,              // зазор между сегментами
+                                int vertArrowHeadSize = 7,       // размер наконечника вертикальной стрелки
+                                bool verticalOnRight = true)     // справа или слева
+{
+    if (!painter || compassRadius < 10)
+        return;
+
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+
+    auto clamp01 = [](double v) -> double {
+        if (v < 0.0) return 0.0;
+        if (v > 1.0) return 1.0;
+        return v;
+    };
+
+    const int cx = center.x();
+    const int cy = center.y();
+
+    QPen pen(color);
+    pen.setWidth(std::max(1, arcThickness));
+    pen.setCapStyle(Qt::RoundCap);
+    pen.setJoinStyle(Qt::RoundJoin);
+    painter->setPen(pen);
+    painter->setBrush(Qt::NoBrush);
+
+    auto pointOnCircleCustom = [&](double customDeg, double radius) -> QPointF {
+        double rad = customDeg * M_PI / 180.0;
+        return QPointF(cx + std::sin(rad) * radius,
+                       cy - std::cos(rad) * radius);
+    };
+
+    // ============================================================
+    // 1. Горизонтальная тяга: дуги "wifi"
+    // ============================================================
+    double hx = osThrust;
+    double hy = -ofThrust;
+
+    double hMag = std::sqrt(hx * hx + hy * hy);
+    double hNorm = clamp01(hMag);
+
+    int hLevels = 0;
+    if (hNorm > 0.15) hLevels = 1;
+    if (hNorm > 0.45) hLevels = 2;
+    if (hNorm > 0.75) hLevels = 3;
+
+    double moveAngleDeg = 0.0;
+    if (hNorm > 0.001) {
+        moveAngleDeg = std::atan2(hx, -hy) * 180.0 / M_PI; // 0 = вверх
+        if (moveAngleDeg < 0.0)
+            moveAngleDeg += 360.0;
+    }
+
+    for (int i = 0; i < hLevels; ++i) {
+        int r = compassRadius + arcBaseOffset + i * arcLevelSpacing;
+
+        double qtCenterDeg = 90.0 - moveAngleDeg;
+        int startAngle16 = int(std::round((qtCenterDeg - arcSpanDeg / 2.0) * 16.0));
+        int spanAngle16  = int(std::round(arcSpanDeg * 16.0));
+
+        QRect rect(cx - r, cy - r, 2 * r, 2 * r);
+        painter->drawArc(rect, startAngle16, spanAngle16);
+    }
+
+    // ============================================================
+    // 2. Вращение по курсу: дуговые стрелки по касательной
+    // ============================================================
+    double rNorm = clamp01(std::abs(orThrust));
+    int rLevels = 0;
+    if (rNorm > 0.15) rLevels = 1;
+    if (rNorm > 0.45) rLevels = 2;
+    if (rNorm > 0.75) rLevels = 3;
+
+    int baseOuterR = compassRadius + arcBaseOffset + std::max(0, hLevels - 1) * arcLevelSpacing;
+    int rotBaseR = baseOuterR + rotArcOffset;
+
+    auto drawTangentialArrowHead = [&](double tipDeg, double radius, bool clockwise)
+    {
+        QPointF tip = pointOnCircleCustom(tipDeg, radius);
+
+        double tangentDeg = clockwise ? (tipDeg + 90.0) : (tipDeg - 90.0);
+        double tangentRad = tangentDeg * M_PI / 180.0;
+
+        QPointF dir(std::sin(tangentRad), -std::cos(tangentRad));
+        QPointF back = -dir;
+        QPointF normal(-dir.y(), dir.x());
+
+        double headLen = std::max(5, rotArrowHeadSize);
+        double headWing = std::max(3, int(rotArrowHeadSize * 0.55));
+
+        QPointF p1 = tip + back * headLen + normal * headWing;
+        QPointF p2 = tip + back * headLen - normal * headWing;
+
+        painter->drawLine(tip, p1);
+        painter->drawLine(tip, p2);
+    };
+
+    auto drawRotArcArrow = [&](double centerDeg, double radius, double spanDeg, bool clockwise)
+    {
+        double startCustomDeg = clockwise ? (centerDeg - spanDeg / 2.0)
+                                          : (centerDeg + spanDeg / 2.0);
+
+        double endCustomDeg   = clockwise ? (centerDeg + spanDeg / 2.0)
+                                          : (centerDeg - spanDeg / 2.0);
+
+        double startQtDeg = 90.0 - startCustomDeg;
+        double spanQtDeg  = clockwise ? -spanDeg : spanDeg;
+
+        QRect rect(cx - int(radius), cy - int(radius), int(radius * 2), int(radius * 2));
+        painter->drawArc(rect,
+                         int(std::round(startQtDeg * 16.0)),
+                         int(std::round(spanQtDeg * 16.0)));
+
+        drawTangentialArrowHead(endCustomDeg, radius, clockwise);
+    };
+
+    // ВАЖНО:
+    // при отсутствии тяги вращения не рисуем ничего
+    if (rLevels > 0) {
+        for (int i = 0; i < rLevels; ++i) {
+            int r = rotBaseR + i * rotArcSpacing;
+
+            if (orThrust > 0.0) {
+                // Положительное вращение: правая сторона, дуга по часовой
+                drawRotArcArrow(90.0, r, rotArcSpanDeg, true);
+            } else {
+                // Отрицательное вращение: левая сторона, дуга против часовой
+                drawRotArcArrow(270.0, r, rotArcSpanDeg, false);
+            }
+        }
+    }
+
+    // ============================================================
+    // 3. Вертикальная тяга: сегменты + наконечник
+    // ============================================================
+    double vNorm = clamp01(std::abs(ovThrust));
+    int vLevels = 0;
+    if (vNorm > 0.15) vLevels = 1;
+    if (vNorm > 0.45) vLevels = 2;
+    if (vNorm > 0.75) vLevels = 3;
+
+    if (vLevels > 0) {
+        int side = verticalOnRight ? 1 : -1;
+        int vx = cx + side * (compassRadius + vertOffset);
+
+        int dir = (ovThrust >= 0.0) ? -1 : 1; // вверх = -1, вниз = +1
+        int yStart = cy + dir * 6;
+
+        for (int i = 0; i < vLevels; ++i) {
+            int segOffset = i * (vertSegLen + vertSegGap);
+
+            int y1 = yStart + dir * segOffset;
+            int y2 = y1 + dir * vertSegLen;
+
+            painter->drawLine(QPoint(vx, y1), QPoint(vx, y2));
+        }
+
+        QPoint tip(vx, yStart + dir * (vLevels * (vertSegLen + vertSegGap)));
+        int wing = std::max(4, vertArrowHeadSize);
+
+        if (dir < 0) {
+            painter->drawLine(tip, QPoint(vx - wing, tip.y() + vertArrowHeadSize));
+            painter->drawLine(tip, QPoint(vx + wing, tip.y() + vertArrowHeadSize));
+        } else {
+            painter->drawLine(tip, QPoint(vx - wing, tip.y() - vertArrowHeadSize));
+            painter->drawLine(tip, QPoint(vx + wing, tip.y() - vertArrowHeadSize));
+        }
+    }
+
+    painter->restore();
+}
+
+template<typename T>
+T constrain(T x, T min_val, T max_val) {
+    if (x < min_val) return min_val;
+    if (x > max_val) return max_val;
+    return x;
+}
+
+template<typename T>
+T map(T x, T in_min, T in_max, T out_min, T out_max) {
+    return (x - in_min) * (out_max - out_min) /
+               (in_max - in_min) + out_min;
+}
+
+float mapf(float x, float in_min, float in_max, float out_min, float out_max) {
+    return (x - in_min) * (out_max - out_min) /
+               (in_max - in_min) + out_min;
+}
+
 void OverlayWidget::paintEvent(QPaintEvent *event)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    QFont labelFont("Consolas", 10);
-    QFont bigLabelFont("Consolas", 14);
+
     int screenWidth = width();
 
     int screenHeight = height();
     int CameraVerticalAngle = 56;
+
+
+    int fontSize = constrain(map(screenWidth, 800, 2400, 10, 18),10,18);
+    QFont labelFont("Cascadia Code", fontSize);
+    QFont bigLabelFont("Cascadia Code", fontSize + 4);
 
     QColor defaultColor(Qt::red);
 
@@ -854,7 +1273,8 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
     double camAngleRulerPointerPos = (double(90.0f - ocamAngle) / 180.0f);
     QString camAngleRulerPointerValue = QString::number(std::round(ocamAngle));
     QString camAngleRuleTitle = "Угол камеры";
-    int camAngleRulerTitleOffset = -20;
+    // int camAngleRulerTitleOffset = -20;
+    int camAngleRulerTitleOffset = map(fontSize, 10, 18, -20, -100);
 
     drawVerticalRuler(&painter,
                       camAngleRulerPos,
@@ -1044,7 +1464,7 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
 
     //Скользящая горизонтальная линейка для курса
     int yawRulerNumNotches = 61;
-    int yawRulerWidth = screenWidth/8*6;
+    int yawRulerWidth = screenWidth/8*5;
     int yawRulerNotchSpacing = yawRulerWidth / (yawRulerNumNotches-1);
     QPoint yawRulerPosition(screenWidth/2, screenHeight / 12);
     int yawRulerNotchLong = 16;
@@ -1109,23 +1529,71 @@ void OverlayWidget::paintEvent(QPaintEvent *event)
                     batteryTextColor);
 
     //Счетчик оборотов аппарата
-    QRect revolutionCounterRect(screenWidth / 30, screenHeight/12 + 20, 120, 20);
+    QRect revolutionCounterRect(screenWidth / 30, screenHeight/12 + 20, 140, 25);
     QFont revFont("Consolas", 12, QFont::Bold);
     QColor revColor = defaultColor;
-    painter.setFont(revFont);
+    painter.setFont(labelFont);
     painter.setPen(revColor);
     painter.drawText(revolutionCounterRect, Qt::AlignLeft, "Обороты: " + QString::number(revolutionCount));
-
     //Состояние светильников
-    QRect lightsRect(screenWidth / 30, screenHeight/12 + 40, 220, 20);
+    QRect lightsRect(screenWidth / 30, screenHeight/12 + 50, 220, 25);
     QFont lightsFont("Consolas", 12, QFont::Bold);
     QColor lightsColor = defaultColor;
-    painter.setFont(lightsFont);
+    painter.setFont(labelFont);
     painter.setPen(lightsColor);
     if(oLightsState)
         painter.drawText(lightsRect, Qt::AlignLeft, "Освещение: вкл.");
     else
         painter.drawText(lightsRect, Qt::AlignLeft, "Освещение: выкл.");
+
+    // Круглый компас
+    int compassOffset = constrain(map(screenWidth, 800, 2400, 30, 70), 30, 70);
+    int compassRadius = constrain(map(screenWidth, 800, 2400, 35, 85), 35, 85);
+
+    QPoint compassCenter(screenWidth - compassRadius - compassOffset,
+                         compassRadius + compassOffset);
+
+    double compassHeading = std::fmod(oYaw + 360.0, 360.0);
+
+    drawCircularCompass(&painter,
+                        compassCenter,
+                        compassRadius,
+                        compassHeading,
+                        defaultColor,
+                        labelFont,
+                        2,
+                        true,
+                        "");
+
+
+
+    // ofThrust = 0.3;
+    // osThrust = -0.2;
+    // ovThrust = 0.5;
+    // orThrust = 0.5;
+
+    drawCompassThrustIndicator(&painter,
+                               compassCenter,
+                               compassRadius,
+                               ofThrust,
+                               osThrust,
+                               orThrust,
+                               ovThrust,
+                               defaultColor,
+                               3,   // arcBaseOffset
+                               8,    // arcLevelSpacing
+                               1,    // arcThickness
+                               15,   // arcSpanDeg
+                               22,   // rotArcOffset
+                               8,    // rotArcSpacing
+                               42,   // rotArcSpanDeg
+                               8,    // rotArrowHeadSize
+                               22,   // vertOffset
+                               8,    // vertSegLen
+                               4,    // vertSegGap
+                               7,    // vertArrowHeadSize
+                               true  // verticalOnRight
+                               );
     // // Рисуем оверлей на всей доступной области виджета
     // painter.setBrush(QBrush(QColor(255, 0, 0, 100))); // Будет красить
     // painter.drawRect(rect()); // Используем rect() для получения текущих размеров виджета
@@ -1166,7 +1634,11 @@ void OverlayWidget::controlsUpdate(const bool& stabEnabled,
                                    const bool& masterFlag,
                                    const float& powerLimit,
                                    const float& camAngle,
-                                   const bool& lightsState){
+                                   const bool& lightsState,
+                                   const float& fThrust,
+                                   const float& sThrust,
+                                   const float& rThrust,
+                                   const float& vThrust){
     ostabEnabled = stabEnabled;
     ostabRoll = stabRoll;
     ostabPitch = stabPitch;

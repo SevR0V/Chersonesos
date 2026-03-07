@@ -68,7 +68,7 @@ private slots:
     void resetAngle();
     void activeProfileChanged();
     void updateOverlayData();
-    void updateMasterFromControl(const bool &masterState);
+    void updateControlData(const bool &masterState, const float &fThrust, const float &sThrust, const float &rThrust, const float &vThrust);
     void telemetryReceived(const TelemetryPacket &packet);
     void setStabState();
     void updateLightState(const bool &lightState);
@@ -102,6 +102,11 @@ private:
     bool stabYawEnabled;
     bool stabDepthEnabled;
     bool m_isCheckingProcess;
+
+    float fThrust;
+    float sThrust;
+    float rThrust;
+    float vThrust;
 
     UdpTelemetryParser *telemetryParser;
     TelemetryPacket telemetryPacket;

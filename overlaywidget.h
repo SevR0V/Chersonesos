@@ -23,7 +23,11 @@ public:
                         const bool& masterFlag,
                         const float& powerLimit,
                         const float& camAngle,
-                        const bool &lightsState);
+                        const bool &lightsState,
+                        const float& fThrust,
+                        const float& sThrust,
+                        const float& rThrust,
+                        const float& vThrust);
 
 public slots:
 
@@ -55,6 +59,10 @@ private:
     float oBatLevel;
     float prevYaw;
     float revolutionCount;
+    float ofThrust;
+    float osThrust;
+    float orThrust;
+    float ovThrust;
     QWidget *parentWidget;
 
     void countRevolutions();

@@ -29,6 +29,11 @@ MainWindow::MainWindow(QWidget *parent)
     camAngle = 0;
     lightsState = false;
 
+    fThrust = 0;
+    sThrust = 0;
+    rThrust = 0;
+    vThrust = 0;
+
     worker->moveToThread(workerThread);
     workerThread->start();
     connect(workerThread, &QThread::finished, worker, &QObject::deleteLater);
@@ -144,7 +149,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(controlsWindow->profileManager, &ProfileManager::profileNameChange, this, &MainWindow::activeProfileChanged);
 
-    connect(udpHandler, &UdpHandler::updateMaster, this, &MainWindow::updateMasterFromControl);
+    connect(udpHandler, &UdpHandler::updateControlData, this, &MainWindow::updateControlData);
     connect(udpHandler, &UdpHandler::updatePowerLimit, ui->powerSlider, &QSlider::setValue);
     connect(ui->powerSlider, &QSlider::valueChanged, udpHandler, &UdpHandler::updatePowerLimitFromGui);
     connect(ui->powerSlider, &QSlider::valueChanged, [this](const int &value){
@@ -476,10 +481,14 @@ void MainWindow::updateOverlayData(){
                               masterState,
                               powerLimit,
                               camAngle,
-                              lightsState);
+                              lightsState,
+                              fThrust,
+                              sThrust,
+                              rThrust,
+                              vThrust);
 }
 
-void MainWindow::updateMasterFromControl(const bool &masterState){
+void MainWindow::updateControlData(const bool &masterState, const float &fThrust, const float &sThrust, const float &rThrust, const float &vThrust){
     MainWindow::masterState = masterState;
     setMasterButtonState(ui->masterButton, masterState, isPanelHidden);
 }
